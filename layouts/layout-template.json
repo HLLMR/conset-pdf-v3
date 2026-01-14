@@ -1,0 +1,35 @@
+{
+  "name": "template-titleblock",
+  "version": "1.0.0",
+  "description": "Template layout profile - edit ROI coordinates for your document type",
+  "page": {
+    "orientation": "landscape",
+    "roiSpace": "visual"
+  },
+  "sheetId": {
+    "rois": [
+      {
+        "x": 0.95,
+        "y": 0.0,
+        "width": 0.05,
+        "height": 0.05
+      }
+    ],
+    "anchorKeywords": ["SHEET", "SHEET NO", "DWG NO", "DWG", "DRAWING NO", "SHEETNUMBER"]
+  },
+  "sheetTitle": {
+    "rois": [
+      {
+        "x": 0.9257,
+        "y": 0.0867,
+        "width": 0.0595,
+        "height": 0.05
+      }
+    ],
+    "maxLength": 100
+  },
+  "validation": {
+    "allowedPrefixes": ["M", "E", "P", "A", "C", "S", "FP", "FA", "G", "H", "L"]
+  },
+  "source": "user-defined"
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+packages/*/dist/
+packages/*/out/
+*.log
+.DS_Store
+*.test.pdf
+test-output/
+coverage/
+.nyc_output/
+.reference/
+
+# conset-pdf outputs
+conset-output/
+*.inventory.json
+*-preview.json
+*-report.json
