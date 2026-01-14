@@ -4,6 +4,8 @@
 
 `conset-pdf` uses a layered architecture with strict boundaries to ensure single-load PDF processing, efficient caching, and pluggable detection strategies.
 
+**Note**: This repository contains the core library and CLI. The GUI is maintained in a separate repository ([conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui)) and uses `@conset-pdf/core` as a dependency.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        CLI Layer                             │
