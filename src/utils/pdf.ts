@@ -7,16 +7,13 @@ let pdfjsLib: any = null;
 async function getPdfJs() {
   if (!pdfjsLib) {
     try {
-      // Use dynamic import for pdfjs-dist
-      const pdfjsModule = await import('pdfjs-dist');
-      pdfjsLib = pdfjsModule.default || pdfjsModule;
+      // Use legacy build for Node.js environments (pdfjs-dist 5.x requires this)
+      const pdfjsModule = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      pdfjsLib = pdfjsModule;
       
-      // Set up worker for Node.js
-      if (pdfjsLib.GlobalWorkerOptions) {
-        // For Node.js, disable the worker - pdfjs-dist can work without it for text extraction
-        // The worker is mainly needed for rendering, not text extraction
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-      }
+      // Set up worker for Node.js - use node build which doesn't require worker
+      // The legacy build for Node.js doesn't need worker configuration
+      // We skip setting workerSrc as the legacy build handles this automatically
     } catch (error: any) {
       console.error('Failed to load pdfjs-dist:', error?.message);
       throw error;
