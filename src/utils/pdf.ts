@@ -329,8 +329,25 @@ export async function extractPageTextWithPositions(
         // Convert to top-left origin (y increases downward)
         const x = transform[4];
         const y = viewport.height - transform[5]; // Flip Y coordinate
-        const width = item.width || 0;
-        const height = item.height || 0;
+        
+        // Calculate width and height from transform matrix
+        // Transform matrix: [a, b, c, d, e, f]
+        // a, d are scale factors, e, f are translations
+        // For text, width is typically calculated from font size and text length
+        // If item.width/height are provided, use them; otherwise estimate
+        let width = item.width || 0;
+        let height = item.height || 0;
+        
+        // If width/height are missing or zero, calculate from transform matrix
+        // The scale factors are in transform[0] (a) and transform[3] (d)
+        if (width <= 0 || height <= 0) {
+          // Estimate width from text length and font size
+          // Font size is typically the scale factor (transform[0] or transform[3])
+          const fontSize = Math.abs(transform[0]) || Math.abs(transform[3]) || 12;
+          // Estimate: average character width is ~0.6 * font size
+          width = item.str.length * fontSize * 0.6;
+          height = fontSize * 1.2; // Height is typically 1.2x font size
+        }
         
         items.push({
           str: item.str,

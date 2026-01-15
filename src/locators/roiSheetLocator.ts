@@ -96,11 +96,22 @@ export class RoiSheetLocator implements SheetLocator {
     // Since ROIs are visually bounded in the GUI, we should only include items fully within the ROI
     const roiItems = page.getTextInROI(roi, true);
     
+    // Debug: If strict containment finds nothing, try overlap to see if it's a coordinate issue
+    let debugOverlapItems: any[] = [];
+    if (roiItems.length === 0) {
+      debugOverlapItems = page.getTextInROI(roi, false);
+      if (debugOverlapItems.length > 0) {
+        console.log(`[RoiSheetLocator] ROI ${roiIndex + 1}: Strict containment found 0 items, but overlap found ${debugOverlapItems.length} items. This suggests a coordinate system issue.`);
+        console.log(`[RoiSheetLocator] ROI: normalized=(${roi.x.toFixed(4)}, ${roi.y.toFixed(4)}, ${roi.width.toFixed(4)}, ${roi.height.toFixed(4)})`);
+        console.log(`[RoiSheetLocator] Sample overlap items: ${debugOverlapItems.slice(0, 3).map(item => `"${item.str.substring(0, 20)}" at (${item.x.toFixed(1)}, ${item.y.toFixed(1)})`).join(', ')}`);
+      }
+    }
+    
     // Check for empty ROI (no text found)
     if (roiItems.length === 0) {
       return {
         confidence: 0.0,
-        warning: `ROI ${roiIndex + 1} empty: No text found in ROI`,
+        warning: `ROI ${roiIndex + 1} empty: No text found in ROI${debugOverlapItems.length > 0 ? ` (but ${debugOverlapItems.length} items found with overlap - coordinate issue?)` : ''}`,
         failureReason: 'ROI_EMPTY',
       };
     }

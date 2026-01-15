@@ -124,24 +124,86 @@ export class PageContext {
     const items = this.getTextItems(); // Uses cached items
     
     // Convert normalized ROI to absolute coordinates
+    // ROI coordinates are normalized (0-1) with origin at bottom-left (PDF standard)
+    // Text items use top-left origin (after Y flip in documentContext.ts)
+    // 
+    // ROI coordinate system (normalized, bottom-left origin):
+    // - x: 0 = left, 1 = right
+    // - y: 0 = bottom, 1 = top
+    // - y represents the BOTTOM edge of the ROI
+    //
+    // Text item coordinate system (absolute, top-left origin):
+    // - x: 0 = left, pageWidth = right
+    // - y: 0 = top, pageHeight = bottom
+    // - y represents the TOP edge of the text item
+    //
+    // Conversion:
+    // ROI coordinate system (normalized, bottom-left origin):
+    // - roi.y is the BOTTOM edge (0 = page bottom, 1 = page top)
+    // - roi.y + roi.height is the TOP edge
+    // 
+    // Text item coordinate system (absolute, top-left origin):
+    // - y is the TOP edge (0 = page top, pageHeight = page bottom)
+    //
+    // To convert ROI top edge to text item top edge:
+    // - ROI top in normalized: roi.y + roi.height (where 1 = page top)
+    // - ROI top in absolute (top-left): (1 - (roi.y + roi.height)) * pageHeight
     const absX = roi.x * this._pageWidth;
-    const absY = roi.y * this._pageHeight;
+    const absY = (1.0 - roi.y - roi.height) * this._pageHeight;
     const absWidth = roi.width * this._pageWidth;
     const absHeight = roi.height * this._pageHeight;
     
+    // Debug logging - always log first few queries to help diagnose
+    const shouldLog = this._roiQueries <= 3 || (strictContainment && items.length === 0);
+    if (shouldLog) {
+      console.log(`[PageContext] ROI query #${this._roiQueries}: normalized=(${roi.x.toFixed(4)}, ${roi.y.toFixed(4)}, ${roi.width.toFixed(4)}, ${roi.height.toFixed(4)}), absolute=(${absX.toFixed(1)}, ${absY.toFixed(1)}, ${absWidth.toFixed(1)}, ${absHeight.toFixed(1)}), pageSize=(${this._pageWidth.toFixed(1)}, ${this._pageHeight.toFixed(1)}), strictContainment=${strictContainment}, totalItems=${items.length}`);
+      if (items.length > 0 && items.length < 50) {
+        const sampleItems = items.slice(0, 10);
+        console.log(`[PageContext] Sample text items (showing ${sampleItems.length} of ${items.length}):`);
+        sampleItems.forEach((item, i) => {
+          const itemRight = item.x + (item.width || 0);
+          const itemBottom = item.y + (item.height || 0);
+          const inBounds = item.x >= absX && itemRight <= absX + absWidth && item.y >= absY && itemBottom <= absY + absHeight;
+          console.log(`  [${i}] "${item.str.substring(0, 30)}" at (${item.x.toFixed(1)}, ${item.y.toFixed(1)}) size(${(item.width || 0).toFixed(1)}, ${(item.height || 0).toFixed(1)}) bounds(${itemRight.toFixed(1)}, ${itemBottom.toFixed(1)}) ${inBounds ? '✓ IN' : '✗ OUT'}`);
+        });
+      } else if (items.length === 0) {
+        console.log(`[PageContext] WARNING: No text items found on page! This might indicate a text extraction issue.`);
+      }
+    }
+    
     // Filter items within ROI
-    // Note: PDF coordinates are bottom-left origin, but we're working in visual space
-    // after rotation normalization
+    // Note: Text items use top-left origin (y increases downward)
     return items.filter(item => {
-      const itemRight = item.x + item.width;
-      const itemBottom = item.y + item.height;
+      // Calculate actual bounding box
+      // If width/height are 0 or missing, use a minimum size based on text length
+      // This ensures we have a valid bounding box for strict containment checks
+      let itemWidth = item.width;
+      let itemHeight = item.height;
+      
+      // If dimensions are missing or zero, estimate from text length
+      // Use a conservative estimate: ~6 points per character width, ~12 points height
+      if (itemWidth <= 0 || itemHeight <= 0) {
+        const textLength = item.str.length;
+        itemWidth = Math.max(itemWidth, textLength * 6);
+        itemHeight = Math.max(itemHeight, 12);
+      }
+      
+      const itemRight = item.x + itemWidth;
+      const itemBottom = item.y + itemHeight;
       
       if (strictContainment) {
         // Strict containment: entire item must be within ROI bounds
-        return item.x >= absX &&
-               itemRight <= absX + absWidth &&
-               item.y >= absY &&
-               itemBottom <= absY + absHeight;
+        // All four corners must be inside the ROI
+        // Left edge must be at or to the right of ROI left
+        // Right edge must be at or to the left of ROI right
+        // Top edge must be at or below ROI top
+        // Bottom edge must be at or above ROI bottom
+        const leftInside = item.x >= absX;
+        const rightInside = itemRight <= absX + absWidth;
+        const topInside = item.y >= absY;
+        const bottomInside = itemBottom <= absY + absHeight;
+        
+        return leftInside && rightInside && topInside && bottomInside;
       } else {
         // Overlap check: item overlaps with ROI (backward compatible behavior)
         return item.x < absX + absWidth &&
