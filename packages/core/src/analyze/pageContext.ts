@@ -115,8 +115,11 @@ export class PageContext {
   /**
    * Get text items within a normalized ROI (0-1 coordinates, visual space)
    * Derived view computed from cached items - no extraction
+   * 
+   * @param roi Normalized ROI coordinates (0-1)
+   * @param strictContainment If true, require entire item to be within ROI. If false, allow overlap (default: false for backward compatibility)
    */
-  getTextItemsInROI(roi: { x: number; y: number; width: number; height: number }): TextItemWithPosition[] {
+  getTextItemsInROI(roi: { x: number; y: number; width: number; height: number }, strictContainment: boolean = false): TextItemWithPosition[] {
     this._roiQueries++;
     const items = this.getTextItems(); // Uses cached items
     
@@ -136,19 +139,30 @@ export class PageContext {
       const itemRight = item.x + item.width;
       const itemBottom = item.y + item.height;
       
-      // Check if item overlaps with ROI
-      return item.x < absX + absWidth &&
-             itemRight > absX &&
-             item.y < absY + absHeight &&
-             itemBottom > absY;
+      if (strictContainment) {
+        // Strict containment: entire item must be within ROI bounds
+        return item.x >= absX &&
+               itemRight <= absX + absWidth &&
+               item.y >= absY &&
+               itemBottom <= absY + absHeight;
+      } else {
+        // Overlap check: item overlaps with ROI (backward compatible behavior)
+        return item.x < absX + absWidth &&
+               itemRight > absX &&
+               item.y < absY + absHeight &&
+               itemBottom > absY;
+      }
     });
   }
   
   /**
    * Alias for getTextItemsInROI (for compatibility with RoiSheetLocator)
+   * 
+   * @param roi Normalized ROI coordinates (0-1)
+   * @param strictContainment If true, require entire item to be within ROI. If false, allow overlap (default: false)
    */
-  getTextInROI(roi: { x: number; y: number; width: number; height: number }): TextItemWithPosition[] {
-    return this.getTextItemsInROI(roi);
+  getTextInROI(roi: { x: number; y: number; width: number; height: number }, strictContainment: boolean = false): TextItemWithPosition[] {
+    return this.getTextItemsInROI(roi, strictContainment);
   }
   
   /**

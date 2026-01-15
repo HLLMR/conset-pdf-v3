@@ -9,6 +9,7 @@ test-output/
 coverage/
 .nyc_output/
 .reference/
+*.tsbuildinfo
 
 # conset-pdf outputs
 conset-output/

@@ -27,8 +27,14 @@ export async function generateMergeReport(
   const finalPagesPlanned = plan.pages.length;
 
   const warnings: string[] = [];
+  const notices: string[] = [];
 
-  // Add parse warnings
+  // Separate notices from warnings (page 1 ROI_EMPTY are notices)
+  if (plan.parseNotices && plan.parseNotices.length > 0) {
+    notices.push(...plan.parseNotices);
+  }
+
+  // Add parse warnings (excluding notices)
   warnings.push(...plan.parseWarnings);
 
   // Analyze warnings for legacy fallback usage
@@ -79,6 +85,7 @@ export async function generateMergeReport(
     inserted: plan.inserted,
     appendedUnmatched: plan.unmatched,
     warnings,
+    notices: notices.length > 0 ? notices : undefined,
     stats: {
       originalPages,
       finalPagesPlanned,

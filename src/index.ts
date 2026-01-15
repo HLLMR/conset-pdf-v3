@@ -46,6 +46,7 @@ export interface MergeReport {
   }>;
 
   warnings: string[];
+  notices?: string[]; // Informational notices (e.g., page 1 cover sheet detection)
   stats: {
     originalPages: number;
     finalPagesPlanned: number;

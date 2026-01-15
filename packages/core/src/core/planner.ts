@@ -41,6 +41,7 @@ export interface MergePlan {
     pageIndexes: number[];
   }>;
   parseWarnings: string[];
+  parseNotices?: string[]; // Informational notices (e.g., page 1 cover sheet detection)
 }
 
 /**
@@ -49,6 +50,7 @@ export interface MergePlan {
 interface ParseResult {
   pageIds: PageId[];
   warnings: string[];
+  notices?: string[];
   docContext?: DocumentContext; // DocumentContext for single-load access
   inventory?: Array<{
     pageIndex: number;
@@ -75,6 +77,7 @@ async function parsePdfIds(
 ): Promise<ParseResult> {
   const pageIds: PageId[] = [];
   const warnings: string[] = [];
+  const notices: string[] = [];
   const inventory: ParseResult['inventory'] = [];
   const parseStart = Date.now();
 
@@ -143,8 +146,35 @@ async function parsePdfIds(
         warnings.push(`Page ${i + 1}: ROI found ID "${result.id}" but confidence ${result.confidence.toFixed(2)} below threshold (0.60). ${result.warnings.length > 0 ? result.warnings.join('; ') : ''}`);
       } else {
         // No ID found - add detailed failure reason
+        // Page 1 ROI_EMPTY should be a notice (likely cover sheet), not a warning
         if (result.warnings.length > 0) {
-          warnings.push(`Page ${i + 1}: ${result.warnings.join('; ')}`);
+          const isPage1 = i === 0;
+          const isROIEmpty = result.warnings.some(w => w.includes('ROI_EMPTY') || w.includes('empty'));
+          
+          if (isPage1 && isROIEmpty) {
+            // Convert to notice with updated wording
+            // Extract ROI count from the warning message or use locator info
+            const roiCountMatch = result.warnings[0]?.match(/All (\d+) ROI/);
+            const roiCount = roiCountMatch ? roiCountMatch[1] : '1';
+            
+            const noticeMsg = result.warnings.map(w => {
+              if (w.includes('ROI') && w.includes('empty')) {
+                // Extract ROI number and failure reason
+                const roiMatch = w.match(/ROI (\d+) empty: (.+?)(?:; All .+ failed: (.+))?/);
+                if (roiMatch) {
+                  const roiNum = roiMatch[1];
+                  const failureReason = roiMatch[3] || 'ROI_EMPTY';
+                  return `Page ${i + 1}: ROI ${roiNum} empty: No text found in ROI; All ${roiCount} ROI(s) failed: ROI ${roiNum}: ${failureReason}; Likely cover sheet: Review output to confirm`;
+                }
+                // Fallback if regex doesn't match
+                return `Page ${i + 1}: ${w}; Likely cover sheet: Review output to confirm`;
+              }
+              return `Page ${i + 1}: ${w}`;
+            }).join('; ');
+            notices.push(noticeMsg);
+          } else {
+            warnings.push(`Page ${i + 1}: ${result.warnings.join('; ')}`);
+          }
         } else {
           warnings.push(`Page ${i + 1}: No sheet ID found`);
         }
@@ -406,7 +436,7 @@ async function parsePdfIds(
     }
   }
   
-  return { pageIds, warnings, docContext, inventory, pageTitleMap };
+  return { pageIds, warnings, notices, docContext, inventory, pageTitleMap };
 }
 
 /**
@@ -462,6 +492,7 @@ export async function planMerge(
   const originalResult = await parsePdfIds(originalPath, type, locator, verbose, writeInventory, inventoryOutputDir);
   const originalPageIds = originalResult.pageIds;
   const parseWarnings = originalResult.warnings;
+  const parseNotices = originalResult.notices || [];
   const originalDocContext = originalResult.docContext;
   
   // Build ID map and detect duplicates with detailed logging
@@ -546,6 +577,7 @@ export async function planMerge(
     const addendumResult = await parsePdfIds(addendumPath, type, locator, verbose, writeInventory, inventoryOutputDir);
     const addendumPageIds = addendumResult.pageIds;
     parseWarnings.push(...addendumResult.warnings);
+    parseNotices.push(...(addendumResult.notices || []));
     const addendumIdMap = buildIdMap(addendumPageIds, verbose, `addendum: ${addendumPath}`);
     const addendumDocContext = addendumResult.docContext;
     const addendumTotalPages = addendumDocContext ? addendumDocContext.pageCount : addendumPageIds.length;
@@ -727,6 +759,7 @@ export async function planMerge(
     inserted,
     unmatched,
     parseWarnings, // Include warnings in plan
+    parseNotices: parseNotices.length > 0 ? parseNotices : undefined, // Include notices in plan
   };
   
   // Attach DocumentContext for use in report generation (avoids re-loading PDF)

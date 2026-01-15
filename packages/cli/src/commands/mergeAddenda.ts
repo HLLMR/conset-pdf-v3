@@ -9,6 +9,7 @@ import {
   CompositeLocator,
   SpecsSectionLocator,
   type SheetLocator,
+  type MergeReport,
 } from '@conset-pdf/core';
 
 export function mergeAddendaCommand(program: Command) {
@@ -106,7 +107,7 @@ export function mergeAddendaCommand(program: Command) {
         // Check for strict mode violations
         if (options.strict && report.appendedUnmatched.length > 0) {
           const unmatchedCount = report.appendedUnmatched.reduce(
-            (sum: number, u) => sum + u.pageIndexes.length,
+            (sum: number, u: MergeReport['appendedUnmatched'][number]) => sum + u.pageIndexes.length,
             0
           );
           console.error(`Error: Strict mode violation: ${unmatchedCount} unmatched pages found`);
