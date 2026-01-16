@@ -3,6 +3,8 @@ import { PageContext } from './pageContext.js';
 import type { TextItemWithPosition } from '../utils/pdf.js';
 
 // Import pdfjs-dist
+// Note: pdfjsLib is typed as 'any' because pdfjs-dist/legacy doesn't provide TypeScript definitions
+// The legacy build exports a module with dynamic properties that can't be statically typed
 let pdfjsLib: any = null;
 
 async function getPdfJs() {
@@ -36,6 +38,8 @@ async function getPdfJs() {
 export class DocumentContext {
   private _pdfPath: string;
   private _pdfBytes: Uint8Array | null = null;
+  // Note: _pdfjsDoc is typed as 'any' because PDF.js document instances don't have complete TypeScript definitions
+  // The document API is accessed dynamically (getPage, getOutline, etc.)
   private _pdfjsDoc: any = null; // pdfjs document instance
   private _pageCount: number = 0;
   private _bookmarks: Array<{ title: string; pageIndex: number }> | null = null;
@@ -264,6 +268,30 @@ export class DocumentContext {
     }
     
     return contexts;
+  }
+  
+  /**
+   * Get visual text items for a page (for debug overlay)
+   * Extracts text if not already extracted, then returns items in visual coordinate space
+   * 
+   * @param pageIndex 0-based page index
+   * @returns Object with page info and text items
+   */
+  async getVisualTextItemsForPage(pageIndex: number): Promise<{
+    pageNumber: number;
+    pageWidth: number;
+    pageHeight: number;
+    items: Array<{ str: string; x: number; y: number; width: number; height: number }>;
+  }> {
+    const context = await this.extractTextForPage(pageIndex);
+    const items = context.getVisualTextItems();
+    
+    return {
+      pageNumber: pageIndex + 1, // Convert to 1-based for display
+      pageWidth: context.pageWidth,
+      pageHeight: context.pageHeight,
+      items,
+    };
   }
   
   /**

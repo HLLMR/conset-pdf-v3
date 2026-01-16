@@ -9,12 +9,7 @@
  * These tests use minimal fixtures or instrumentation to keep them fast.
  */
 
-import { DocumentContext } from '../../src/analyze/documentContext.js';
-import { RoiSheetLocator } from '../../src/locators/roiSheetLocator.js';
-import { LegacyTitleblockLocator } from '../../src/locators/legacyTitleblockLocator.js';
-import { SpecsSectionLocator } from '../../src/locators/specsSectionLocator.js';
-import { CompositeLocator } from '../../src/locators/compositeLocator.js';
-import { createInlineLayout } from '../../src/layout/load.js';
+import { DocumentContext, RoiSheetLocator, LegacyTitleblockLocator, SpecsSectionLocator, CompositeLocator, createInlineLayout } from '@conset-pdf/core';
 import { PDFDocument } from 'pdf-lib';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';

@@ -113,25 +113,65 @@ export class PageContext {
   }
   
   /**
+   * Get visual text items for debug overlay
+   * Returns items in the same visual coordinate space used by ROI filtering (top-left visual space)
+   * 
+   * @returns Array of text items with position information
+   */
+  getVisualTextItems(): Array<{ str: string; x: number; y: number; width: number; height: number }> {
+    const items = this.getTextItems();
+    // Return items in the same format - they're already in visual coordinates
+    return items.map(item => ({
+      str: item.str,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+    }));
+  }
+  
+  /**
    * Get text items within a normalized ROI (0-1 coordinates, visual space)
    * Derived view computed from cached items - no extraction
    * 
-   * @param roi Normalized ROI coordinates (0-1)
-   * @param strictContainment If true, require entire item to be within ROI. If false, allow overlap (default: false for backward compatibility)
+   * @param roi Normalized ROI coordinates (0-1, bottom-left origin)
+   * @param options Optional filtering controls
+   * @param options.padNorm Expand ROI in normalized coords during filtering (default: 0)
+   * @param options.intersectionMode "strict" requires entire item within ROI, "overlap" allows partial overlap (default: "strict" for backward compatibility with strictContainment=true)
+   * @param options.overlapThreshold Only used if intersectionMode="overlap"; minimum overlap ratio (0-1) required (default: 0.5)
    */
-  getTextItemsInROI(roi: { x: number; y: number; width: number; height: number }, strictContainment: boolean = false): TextItemWithPosition[] {
+  getTextItemsInROI(
+    roi: { x: number; y: number; width: number; height: number },
+    options?: {
+      padNorm?: number;
+      intersectionMode?: 'strict' | 'overlap';
+      overlapThreshold?: number;
+    }
+  ): TextItemWithPosition[] {
     this._roiQueries++;
     const items = this.getTextItems(); // Uses cached items
+    
+    // Apply padding if specified
+    const padNorm = options?.padNorm ?? 0;
+    const expandedRoi = {
+      x: Math.max(0, roi.x - padNorm),
+      y: Math.max(0, roi.y - padNorm),
+      width: Math.min(1 - (roi.x - padNorm), roi.width + 2 * padNorm),
+      height: Math.min(1 - (roi.y - padNorm), roi.height + 2 * padNorm),
+    };
     
     // Convert normalized ROI to absolute coordinates
     // ROI uses bottom-left origin (y: 0.0 = bottom, y: 1.0 = top) - PDF standard
     // Text items use top-left origin (y: 0 = top, y: max = bottom)
     // Since text items are now in visual (rotated) coordinates, we can use simple conversion
     // regardless of rotation - the transformation was already applied during extraction
-    const absX = roi.x * this._pageWidth;
-    const absY = this._pageHeight * (1.0 - roi.y - roi.height); // Convert bottom-left ROI to top-left text items
-    const absWidth = roi.width * this._pageWidth;
-    const absHeight = roi.height * this._pageHeight;
+    const absX = expandedRoi.x * this._pageWidth;
+    const absY = this._pageHeight * (1.0 - expandedRoi.y - expandedRoi.height); // Convert bottom-left ROI to top-left text items
+    const absWidth = expandedRoi.width * this._pageWidth;
+    const absHeight = expandedRoi.height * this._pageHeight;
+    
+    const intersectionMode = options?.intersectionMode ?? 'strict';
+    const overlapThreshold = options?.overlapThreshold ?? 0.5;
     
     // Filter items within ROI
     // ROI uses bottom-left origin, text items use top-left origin (after conversion)
@@ -139,18 +179,27 @@ export class PageContext {
       const itemRight = item.x + item.width;
       const itemBottom = item.y + item.height;
       
-      if (strictContainment) {
+      if (intersectionMode === 'strict') {
         // Strict containment: entire item must be within ROI bounds
         return item.x >= absX &&
                itemRight <= absX + absWidth &&
                item.y >= absY &&
                itemBottom <= absY + absHeight;
       } else {
-        // Overlap check: item overlaps with ROI (backward compatible behavior)
-        return item.x < absX + absWidth &&
-               itemRight > absX &&
-               item.y < absY + absHeight &&
-               itemBottom > absY;
+        // Overlap mode: require minimum overlap ratio
+        const overlapX = Math.max(0, Math.min(itemRight, absX + absWidth) - Math.max(item.x, absX));
+        const overlapY = Math.max(0, Math.min(itemBottom, absY + absHeight) - Math.max(item.y, absY));
+        const overlapArea = overlapX * overlapY;
+        const itemArea = item.width * item.height;
+        
+        if (itemArea === 0) {
+          // Zero-area item: use point-in-rectangle check
+          return item.x >= absX && item.x <= absX + absWidth &&
+                 item.y >= absY && item.y <= absY + absHeight;
+        }
+        
+        const overlapRatio = overlapArea / itemArea;
+        return overlapRatio >= overlapThreshold;
       }
     });
   }
@@ -160,9 +209,13 @@ export class PageContext {
    * 
    * @param roi Normalized ROI coordinates (0-1)
    * @param strictContainment If true, require entire item to be within ROI. If false, allow overlap (default: false)
+   * @deprecated Use getTextItemsInROI() with options instead
    */
   getTextInROI(roi: { x: number; y: number; width: number; height: number }, strictContainment: boolean = false): TextItemWithPosition[] {
-    return this.getTextItemsInROI(roi, strictContainment);
+    return this.getTextItemsInROI(roi, {
+      intersectionMode: strictContainment ? 'strict' : 'overlap',
+      overlapThreshold: strictContainment ? 1.0 : 0.5,
+    });
   }
   
   /**
@@ -189,6 +242,8 @@ export class PageContext {
   
   /**
    * Cache detection result by key
+   * Note: result is typed as 'any' because different locators return different result shapes
+   * (SheetLocationResult, detection metadata, etc.). The cache is locator-specific.
    */
   setDetectionResult(key: string, result: any): void {
     this._detectionCache.set(key, result);

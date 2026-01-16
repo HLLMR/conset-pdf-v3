@@ -234,6 +234,8 @@ export async function generateBookmarks(
   // Remove existing bookmarks by clearing the outline
   try {
     const catalog = pdfDoc.catalog;
+    // Note: pdf-lib's catalog.dict is not in public API types but exists internally
+    // We access it via 'any' to manipulate outline structure
     if (catalog && (catalog as any).dict) {
       (catalog as any).dict.delete('Outlines');
     }

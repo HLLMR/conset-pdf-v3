@@ -2,6 +2,7 @@ import type { SheetLocator, SheetLocationResult } from './sheetLocator.js';
 import type { PageContext } from '../analyze/pageContext.js';
 import type { LayoutProfile } from '../layout/types.js';
 import { normalizeDrawingsSheetId } from '../parser/normalize.js';
+import { assembleTextVisual, type VisualTextItem } from '../analyze/readingOrder.js';
 
 /**
  * ROI-based sheet locator using layout profile
@@ -9,6 +10,9 @@ import { normalizeDrawingsSheetId } from '../parser/normalize.js';
 export class RoiSheetLocator implements SheetLocator {
   private profile: LayoutProfile;
   private defaultPattern: RegExp;
+  
+  // Internal constants for geometry-aware detection
+  private static readonly DEFAULT_ID_PAD_NORM = 0.002; // Tiny expansion to tolerate drift
   
   constructor(profile: LayoutProfile) {
     this.profile = profile;
@@ -92,9 +96,13 @@ export class RoiSheetLocator implements SheetLocator {
     roi: { x: number; y: number; width: number; height: number },
     roiIndex: number
   ): Promise<{ id?: string; normalizedId?: string; confidence: number; warning?: string; failureReason?: string }> {
-    // Get text items in ROI using strict containment
-    // Since ROIs are visually bounded in the GUI, we should only include items fully within the ROI
-    const roiItems = page.getTextInROI(roi, true);
+    // Get text items in ROI with small padding to tolerate drift
+    // Use overlap mode to be more tolerant of items near ROI boundaries
+    const roiItems = page.getTextItemsInROI(roi, {
+      padNorm: RoiSheetLocator.DEFAULT_ID_PAD_NORM,
+      intersectionMode: 'overlap',
+      overlapThreshold: 0.3, // Lower threshold to catch items that are mostly in ROI
+    });
     
     // Check for empty ROI (no text found)
     if (roiItems.length === 0) {
@@ -116,124 +124,181 @@ export class RoiSheetLocator implements SheetLocator {
       };
     }
     
-    // Find matches using regex
-    // Strategy: Try individual items first, then try concatenated text (in case ID spans multiple items)
-    const matches: Array<{ id: string; item: any }> = [];
+    // Candidate-based matching: test regex on each item independently, then try small spatial merges
+    type Candidate = {
+      id: string;
+      items: VisualTextItem[]; // Items that make up this candidate
+      bbox: { x: number; y: number; width: number; height: number }; // Bounding box
+      charCount: number; // Total character count
+      tokenCount: number; // Number of items merged
+    };
     
-    // First, try matching individual text items
-    // Use global patterns to find ALL matches in each item, not just the first
-    for (const item of roiItems) {
-      const text = item.str.trim();
-      if (!text) continue;
+    const candidates: Candidate[] = [];
+    
+    // Helper to test regex patterns on text
+    const findMatchesInText = (text: string): string[] => {
+      const matches: string[] = [];
       
-      const itemMatches: string[] = [];
-      
-      // Try configured pattern first (global)
+      // Try configured pattern first
       const defaultMatches = text.matchAll(this.defaultPattern);
       for (const match of defaultMatches) {
         const id = match[1] || match[0];
         const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-        if (!itemMatches.includes(cleanedId)) {
-          itemMatches.push(cleanedId);
+        if (!matches.includes(cleanedId)) {
+          matches.push(cleanedId);
         }
       }
       
-      // If no matches, try flexible patterns (global)
-      if (itemMatches.length === 0) {
-        // Pattern 1: Very permissive - matches sheet IDs in various formats
-        const flexiblePattern1 = /([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)/gi;
-        let match;
-        while ((match = flexiblePattern1.exec(text)) !== null) {
-          const id = match[1] || match[0];
-          const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-          if (!itemMatches.includes(cleanedId)) {
-            itemMatches.push(cleanedId);
+      // If no matches, try flexible patterns
+      if (matches.length === 0) {
+        const patterns = [
+          /([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)/gi,
+          /([A-Z]{1,4}\d{1,6}(?:\.[A-Z0-9]+)?)/gi,
+          /\b([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)\b/gi,
+        ];
+        
+        for (const pattern of patterns) {
+          let match;
+          while ((match = pattern.exec(text)) !== null) {
+            const id = match[1] || match[0];
+            const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
+            if (!matches.includes(cleanedId)) {
+              matches.push(cleanedId);
+            }
           }
+          if (matches.length > 0) break;
         }
       }
       
-      if (itemMatches.length === 0) {
-        // Pattern 2: Even more permissive - no separator required
-        const flexiblePattern2 = /([A-Z]{1,4}\d{1,6}(?:\.[A-Z0-9]+)?)/gi;
-        let match;
-        while ((match = flexiblePattern2.exec(text)) !== null) {
-          const id = match[1] || match[0];
-          const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-          if (!itemMatches.includes(cleanedId)) {
-            itemMatches.push(cleanedId);
-          }
-        }
+      return matches;
+    };
+    
+    // Helper to compute bounding box for items
+    const computeBbox = (items: VisualTextItem[]): { x: number; y: number; width: number; height: number } => {
+      if (items.length === 0) {
+        return { x: 0, y: 0, width: 0, height: 0 };
       }
+      const minX = Math.min(...items.map(item => item.x));
+      const maxX = Math.max(...items.map(item => item.x + item.width));
+      const minY = Math.min(...items.map(item => item.y));
+      const maxY = Math.max(...items.map(item => item.y + item.height));
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+    };
+    
+    // Step 1: Test regex on each item independently
+    for (const item of roiItems) {
+      const text = item.str.trim();
+      if (!text) continue;
       
-      if (itemMatches.length === 0) {
-        // Pattern 3: Extract ID from text that contains it (e.g., "Unit C1 A901.C1" -> "A901.C1")
-        const flexiblePattern3 = /\b([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)\b/gi;
-        let match;
-        while ((match = flexiblePattern3.exec(text)) !== null) {
-          const id = match[1] || match[0];
-          const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-          if (!itemMatches.includes(cleanedId)) {
-            itemMatches.push(cleanedId);
-          }
-        }
-      }
-      
-      // Add all matches from this item
-      for (const id of itemMatches) {
-        matches.push({ id, item });
+      const matches = findMatchesInText(text);
+      for (const id of matches) {
+        candidates.push({
+          id,
+          items: [item],
+          bbox: computeBbox([item]),
+          charCount: id.length,
+          tokenCount: 1,
+        });
       }
     }
     
-    // If no matches in individual items, try concatenated text
-    // This handles cases where the ID spans multiple text items (e.g., "A901" and ".C1" are separate)
-    // Also find ALL matches in concatenated text, not just the first one
-    if (matches.length === 0) {
-      const concatenatedText = roiItems.map(item => item.str.trim()).join(' ');
-      
-      // Try to find ALL matches using flexible patterns (global flag)
-      const allMatches: string[] = [];
-      
-      // Pattern 1: With separators and suffixes
-      const flexiblePattern1 = /([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)/gi;
-      let match;
-      while ((match = flexiblePattern1.exec(concatenatedText)) !== null) {
-        const id = match[1] || match[0];
-        const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-        if (!allMatches.includes(cleanedId)) {
-          allMatches.push(cleanedId);
+    // Step 2: If no matches, try small merges of spatial neighbors (pairs only)
+    if (candidates.length === 0) {
+      // Sort items by y (top to bottom), then x (left to right) for consistent neighbor finding
+      const sortedItems = [...roiItems].sort((a, b) => {
+        const yDiff = Math.abs(a.y - b.y);
+        if (yDiff > 10) {
+          return a.y - b.y; // Different lines
         }
-      }
+        return a.x - b.x; // Same line
+      });
       
-      // Pattern 2: Without separators
-      if (allMatches.length === 0) {
-        const flexiblePattern2 = /([A-Z]{1,4}\d{1,6}(?:\.[A-Z0-9]+)?)/gi;
-        while ((match = flexiblePattern2.exec(concatenatedText)) !== null) {
-          const id = match[1] || match[0];
-          const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-          if (!allMatches.includes(cleanedId)) {
-            allMatches.push(cleanedId);
+      // Try merging each item with its nearest-right neighbor (same line)
+      for (let i = 0; i < sortedItems.length; i++) {
+        const item = sortedItems[i];
+        const itemText = item.str.trim();
+        if (!itemText) continue;
+        
+        // Find nearest-right neighbor on same line (y within tolerance)
+        const lineTol = 10;
+        let nearestRight: VisualTextItem | null = null;
+        let minXDist = Infinity;
+        
+        for (let j = i + 1; j < sortedItems.length; j++) {
+          const other = sortedItems[j];
+          const yDiff = Math.abs(other.y - item.y);
+          if (yDiff <= lineTol && other.x > item.x) {
+            const xDist = other.x - (item.x + item.width);
+            if (xDist < minXDist && xDist < 50) { // Only consider nearby items
+              minXDist = xDist;
+              nearestRight = other;
+            }
           }
         }
-      }
-      
-      // Pattern 3: With word boundaries
-      if (allMatches.length === 0) {
-        const flexiblePattern3 = /\b([A-Z]{1,4}[-._ ]?\d{1,6}(?:\.[A-Z0-9]+)?)\b/gi;
-        while ((match = flexiblePattern3.exec(concatenatedText)) !== null) {
-          const id = match[1] || match[0];
-          const cleanedId = id.trim().replace(/\s+/g, '').toUpperCase();
-          if (!allMatches.includes(cleanedId)) {
-            allMatches.push(cleanedId);
+        
+        if (nearestRight) {
+          const mergedText = itemText + nearestRight.str.trim();
+          const matches = findMatchesInText(mergedText);
+          for (const id of matches) {
+            candidates.push({
+              id,
+              items: [item, nearestRight],
+              bbox: computeBbox([item, nearestRight]),
+              charCount: id.length,
+              tokenCount: 2,
+            });
           }
         }
-      }
-      
-      // Add all found matches (they'll be scored and ranked later)
-      for (const id of allMatches) {
-        // Use the first item as the source for positioning (we'll score based on ID quality)
-        matches.push({ id, item: roiItems[0] });
+        
+        // Try merging with nearest-below neighbor (next line, near x overlap)
+        let nearestBelow: VisualTextItem | null = null;
+        let minYDist = Infinity;
+        
+        for (let j = i + 1; j < sortedItems.length; j++) {
+          const other = sortedItems[j];
+          if (other.y > item.y) {
+            // Check x overlap
+            const itemRight = item.x + item.width;
+            const otherRight = other.x + other.width;
+            if (item.x < otherRight && itemRight > other.x) {
+              const yDist = other.y - (item.y + item.height);
+              if (yDist < minYDist && yDist < 30) { // Only consider nearby items
+                minYDist = yDist;
+                nearestBelow = other;
+              }
+            }
+          }
+        }
+        
+        if (nearestBelow) {
+          const mergedText = itemText + ' ' + nearestBelow.str.trim();
+          const matches = findMatchesInText(mergedText);
+          for (const id of matches) {
+            candidates.push({
+              id,
+              items: [item, nearestBelow],
+              bbox: computeBbox([item, nearestBelow]),
+              charCount: id.length,
+              tokenCount: 2,
+            });
+          }
+        }
       }
     }
+    
+    // Convert candidates to matches format for compatibility with existing scoring
+    // Note: item is typed as 'any' because it's a TextItemWithPosition from PDF.js text extraction
+    // The exact shape varies and isn't fully typed in pdfjs-dist
+    const matches: Array<{ id: string; item: any; candidate?: Candidate }> = candidates.map(candidate => ({
+      id: candidate.id,
+      item: candidate.items[0], // Use first item for positioning
+      candidate,
+    }));
     
     if (matches.length === 0) {
       const sampleText = roiItems.slice(0, 3).map(item => item.str).join(' ');
@@ -252,15 +317,19 @@ export class RoiSheetLocator implements SheetLocator {
       )
     );
     
-    // Score and rank matches to pick the best one
+    // Score and rank candidates to pick the best one
     // Score factors:
     // 1. Completeness: IDs with suffix (e.g., "A901.C1") are better than partial (e.g., "C1")
     // 2. Length: Longer IDs are generally more complete
     // 3. Structure: IDs with separators or suffixes follow expected patterns
-    // 4. Anchor proximity: Closer to anchor keywords is better
+    // 4. Geometry: Smaller bounding boxes are better (sheet IDs are compact)
+    // 5. Position: Prefer candidates closer to bottom-right of ROI
+    // 6. Token count: Prefer candidates made from fewer items (less merging = more reliable)
+    // 7. Anchor proximity: Closer to anchor keywords is better
     const scoredMatches = matches.map(match => {
       let score = 0;
       const id = match.id;
+      const candidate = match.candidate;
       
       // Base score from length (longer = better, but not too long)
       score += Math.min(id.length * 2, 20);
@@ -298,6 +367,43 @@ export class RoiSheetLocator implements SheetLocator {
         score -= 15; // Likely a partial word match
       }
       
+      // Geometry-aware scoring: prefer smaller bounding boxes (sheet IDs are compact)
+      if (candidate) {
+        const bboxArea = candidate.bbox.width * candidate.bbox.height;
+        // Smaller area = better (sheet IDs are compact)
+        // Normalize by page area to get relative size
+        const pageArea = page.pageWidth * page.pageHeight;
+        const relativeArea = bboxArea / pageArea;
+        // Score: smaller relative area gets higher score (max +10 points)
+        score += Math.max(0, 10 - relativeArea * 10000);
+        
+        // Prefer candidates closer to bottom-right of ROI
+        // ROI bottom-right in visual coordinates (top-left origin)
+        const roiBottomRightX = roi.x * page.pageWidth + roi.width * page.pageWidth;
+        const roiBottomRightY = page.pageHeight * (1.0 - roi.y); // Convert from bottom-left to top-left
+        const candidateCenterX = candidate.bbox.x + candidate.bbox.width / 2;
+        const candidateCenterY = candidate.bbox.y + candidate.bbox.height / 2;
+        const distToBottomRight = Math.sqrt(
+          Math.pow(candidateCenterX - roiBottomRightX, 2) +
+          Math.pow(candidateCenterY - roiBottomRightY, 2)
+        );
+        // Closer to bottom-right = better (max +5 points)
+        const maxDist = Math.sqrt(Math.pow(page.pageWidth, 2) + Math.pow(page.pageHeight, 2));
+        score += Math.max(0, 5 * (1 - distToBottomRight / maxDist));
+        
+        // Penalty for candidates made from too many items (prefer single items or small merges)
+        if (candidate.tokenCount > 2) {
+          score -= 10; // Penalty for merging more than 2 items
+        } else if (candidate.tokenCount === 2) {
+          score -= 2; // Small penalty for merging 2 items
+        }
+        
+        // Penalty for candidates with too many characters (likely contamination)
+        if (candidate.charCount > id.length * 1.5) {
+          score -= 15; // Heavy penalty if candidate text is much longer than matched ID
+        }
+      }
+      
       // Anchor proximity bonus (if anchors exist)
       if (anchorItems.length > 0) {
         const dist = this.distanceToNearestAnchor(match.item, anchorItems);
@@ -309,11 +415,79 @@ export class RoiSheetLocator implements SheetLocator {
         }
       }
       
-      return { match, score };
+      return { match, score, candidate };
     });
     
-    // Sort by score (highest first)
-    scoredMatches.sort((a, b) => b.score - a.score);
+    // Exception rule: Allow very short compact candidates if they're the only one and closest to anchor
+    // This handles cases like "L6" that are valid but get penalized by normal scoring
+    if (anchorItems.length > 0 && scoredMatches.length > 0) {
+      const pageArea = page.pageWidth * page.pageHeight;
+      const compactCandidates = scoredMatches.filter(scored => {
+        const candidate = scored.candidate;
+        if (!candidate) return false;
+        
+        const id = scored.match.id;
+        // Must be <= 3 characters
+        if (id.length > 3) return false;
+        
+        // Must have very small bounding box (compact)
+        const bboxArea = candidate.bbox.width * candidate.bbox.height;
+        const relativeArea = bboxArea / pageArea;
+        // Consider "very small" as less than 0.0001 of page area (e.g., < 100px² on a 1000x1000 page)
+        if (relativeArea >= 0.0001) return false;
+        
+        return true;
+      });
+      
+      // Only apply exception if there's exactly ONE compact candidate
+      if (compactCandidates.length === 1) {
+        const compactCandidate = compactCandidates[0];
+        
+        // Check if it's the closest to anchor
+        const compactDist = this.distanceToNearestAnchor(compactCandidate.match.item, anchorItems);
+        const isClosestToAnchor = scoredMatches.every(scored => {
+          if (scored === compactCandidate) return true;
+          const otherDist = this.distanceToNearestAnchor(scored.match.item, anchorItems);
+          return compactDist <= otherDist;
+        });
+        
+        // Check if there are any longer valid candidates (length > 3)
+        const longerCandidates = scoredMatches.filter(scored => {
+          return scored.match.id.length > 3 && scored !== compactCandidate;
+        });
+        
+        // Only allow compact candidate if:
+        // 1. It's closest to anchor
+        // 2. There are NO longer valid candidates (never override longer candidates)
+        if (isClosestToAnchor && longerCandidates.length === 0) {
+          // Boost the score significantly to make it the best match
+          // Add enough points to overcome the -20 penalty and then some
+          compactCandidate.score += 50;
+        }
+      }
+    }
+    
+    // Sort by score (highest first), then by deterministic tie-breakers
+    scoredMatches.sort((a, b) => {
+      // Primary: score (descending)
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      // Tie-breaker 1: smaller bbox area (ascending)
+      if (a.candidate && b.candidate) {
+        const aArea = a.candidate.bbox.width * a.candidate.bbox.height;
+        const bArea = b.candidate.bbox.width * b.candidate.bbox.height;
+        if (aArea !== bArea) {
+          return aArea - bArea;
+        }
+      }
+      // Tie-breaker 2: x position (ascending - prefer leftmost)
+      if (a.match.item.x !== b.match.item.x) {
+        return a.match.item.x - b.match.item.x;
+      }
+      // Tie-breaker 3: y position (ascending - prefer topmost)
+      return a.match.item.y - b.match.item.y;
+    });
     
     const bestMatch = scoredMatches[0].match;
     const confidence = this.calculateConfidence([bestMatch], anchorItems);
@@ -406,34 +580,38 @@ export class RoiSheetLocator implements SheetLocator {
     
     // Try each title ROI
     for (const roi of this.profile.sheetTitle.rois) {
-      // Use strict containment for title extraction - entire text item must be within ROI
-      // This prevents picking up text that's partially outside the ROI (like "DATE" above the title box)
-      let roiItems = page.getTextInROI(roi, true);
+      // Use overlap mode with small padding for title extraction to handle drift
+      // This is more tolerant than strict containment while still filtering out distant text
+      let roiItems = page.getTextItemsInROI(roi, {
+        padNorm: RoiSheetLocator.DEFAULT_ID_PAD_NORM,
+        intersectionMode: 'overlap',
+        overlapThreshold: 0.3,
+      });
         
-        if (roiItems.length === 0) continue;
+      if (roiItems.length === 0) continue;
         
-        // For rotated pages, filter out items that are clearly outside the title block region
-        // (e.g., project info at the top, drawing content at the bottom)
-        // This helps when the ROI spans too large a vertical range
-        // Note: Since text items are now in visual coordinates, this filtering works for all rotations
-        const rotation = page.rotation || 0;
-        if (rotation !== 0) {
-          // Find sheet ID location to use as reference
-          const sheetIdItems = page.getTextItems().filter(item => 
-            /^[A-Z]{1,3}\d+[.\-]\d+[A-Z]?$/i.test(item.str.trim())
-          );
-          if (sheetIdItems.length > 0) {
-            const sheetIdY = Math.min(...sheetIdItems.map(item => item.y));
-            // Title should be above or near sheet ID, but not too high (avoid project info)
-            // Filter to items between y=sheetIdY-100 and y=sheetIdY+30 (around sheet ID level)
-            // This allows for titles that might span multiple lines
-            const minY = sheetIdY - 100;
-            const maxY = sheetIdY + 30;
-            roiItems = roiItems.filter(item => item.y >= minY && item.y <= maxY);
-          }
+      // For rotated pages, filter out items that are clearly outside the title block region
+      // (e.g., project info at the top, drawing content at the bottom)
+      // This helps when the ROI spans too large a vertical range
+      // Note: Since text items are now in visual coordinates, this filtering works for all rotations
+      const rotation = page.rotation || 0;
+      if (rotation !== 0) {
+        // Find sheet ID location to use as reference
+        const sheetIdItems = page.getTextItems().filter(item => 
+          /^[A-Z]{1,3}\d+[.\-]\d+[A-Z]?$/i.test(item.str.trim())
+        );
+        if (sheetIdItems.length > 0) {
+          const sheetIdY = Math.min(...sheetIdItems.map(item => item.y));
+          // Title should be above or near sheet ID, but not too high (avoid project info)
+          // Filter to items between y=sheetIdY-100 and y=sheetIdY+30 (around sheet ID level)
+          // This allows for titles that might span multiple lines
+          const minY = sheetIdY - 100;
+          const maxY = sheetIdY + 30;
+          roiItems = roiItems.filter(item => item.y >= minY && item.y <= maxY);
         }
+      }
         
-        if (roiItems.length === 0) continue;
+      if (roiItems.length === 0) continue;
       
       // Filter out metadata words and project information
       // Only filter if the text IS metadata (exact matches or common patterns), not if it just contains the word
@@ -490,20 +668,20 @@ export class RoiSheetLocator implements SheetLocator {
       });
       
       if (titleCandidates.length > 0) {
-        // Sort all candidates by reading order: top to bottom, then left to right
-        // Use a small tolerance for Y to group items on the same visual line
-        const sortedCandidates = [...titleCandidates].sort((a, b) => {
-          // First sort by Y (top to bottom), with tolerance for same line
-          const yDiff = Math.abs(a.y - b.y);
-          if (yDiff > 15) {
-            return a.y - b.y; // Different lines: sort by Y
-          }
-          // Same line (within 15 points): sort by X (left to right)
-          return a.x - b.x;
-        });
+        // Use visual reading-order assembly to handle wrapped titles correctly
+        // Convert to VisualTextItem format
+        const visualItems: VisualTextItem[] = titleCandidates.map(item => ({
+          str: item.str,
+          x: item.x,
+          y: item.y,
+          width: item.width,
+          height: item.height,
+        }));
         
-        // Join all items in reading order
-        const titleText = sortedCandidates.map(item => item.str.trim()).join(' ').trim();
+        // Assemble using visual reading order (handles wrapping correctly)
+        const titleText = assembleTextVisual(visualItems, {
+          joinLines: 'space', // Titles often wrap but should read as one line
+        });
         
         // Clean up multiple spaces and normalize dashes
         const cleanedTitle = titleText

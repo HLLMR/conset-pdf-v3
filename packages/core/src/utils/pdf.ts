@@ -2,6 +2,8 @@ import { PDFDocument } from 'pdf-lib';
 import * as fs from 'fs/promises';
 
 // Import pdfjs-dist
+// Note: pdfjsLib is typed as 'any' because pdfjs-dist/legacy doesn't provide TypeScript definitions
+// The legacy build exports a module with dynamic properties that can't be statically typed
 let pdfjsLib: any = null;
 
 async function getPdfJs() {
@@ -179,6 +181,7 @@ export async function extractBookmarks(pdfPath: string): Promise<Array<{
     
     // Try to get outline/bookmarks - pdfjs-dist may expose this differently
     // Check multiple possible properties/methods
+    // Note: outline is typed as 'any' because PDF.js outline structure varies by version and isn't fully typed
     let outline: any = null;
     
     if (pdf.outline) {

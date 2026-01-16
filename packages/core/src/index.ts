@@ -1,3 +1,5 @@
+import type { SheetLocator } from './locators/sheetLocator.js';
+
 export type ConsetDocType = 'drawings' | 'specs';
 
 export interface MergeAddendaOptions {
@@ -12,7 +14,7 @@ export interface MergeAddendaOptions {
   reportPath?: string; // optional
   regenerateBookmarks?: boolean; // regenerate bookmarks from detected sheet numbers and titles
   inventoryOutputDir?: string; // optional: directory for inventory JSON files
-  locator?: any; // SheetLocator instance (internal use)
+  locator?: SheetLocator; // SheetLocator instance (internal use, for advanced scenarios)
   patterns?: {
     drawingsSheetId?: string; // regex string
     specsSectionId?: string; // regex string

@@ -89,6 +89,9 @@ async function parsePdfIds(
     await docContext.initialize();
     
     // If locator supports setDocumentContext (LegacyTitleblockLocator or CompositeLocator), set it for single-load
+    // Note: setDocumentContext is an optional method not in SheetLocator interface
+    // Some locators (CompositeLocator) implement it for optimization
+    // We check dynamically and cast to 'any' to call it
     if (locator && typeof (locator as any).setDocumentContext === 'function') {
       (locator as any).setDocumentContext(docContext);
     }
@@ -297,6 +300,9 @@ async function parsePdfIds(
     await docContext.initialize();
     
     // If locator is SpecsSectionLocator, set DocumentContext for single-load
+    // Note: setDocumentContext is an optional method not in SheetLocator interface
+    // Some locators (CompositeLocator) implement it for optimization
+    // We check dynamically and cast to 'any' to call it
     if (locator && typeof (locator as any).setDocumentContext === 'function') {
       (locator as any).setDocumentContext(docContext);
     }

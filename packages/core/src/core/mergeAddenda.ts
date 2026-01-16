@@ -26,7 +26,7 @@ export async function mergeAddenda(
   }
 
   // Get locator if provided (from layout profile or inline ROI)
-  const locator: SheetLocator | null = (opts as any).locator || null;
+  const locator: SheetLocator | null = opts.locator || null;
 
   // Plan the merge
   const plan = await planMerge(
@@ -38,7 +38,7 @@ export async function mergeAddenda(
     locator,
     verbose,
     true, // Always write inventory files for debugging
-    (opts as any).inventoryOutputDir // Optional organized output directory
+    opts.inventoryOutputDir // Optional organized output directory
   );
 
   const parseTime = Date.now() - parseStart;

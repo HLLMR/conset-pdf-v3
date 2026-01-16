@@ -221,6 +221,8 @@ export function calculateEnhancedConfidence(
  * @param customPattern - Optional custom regex pattern
  * @param verbose - Verbose logging
  */
+// Note: docContextOrPath is typed as 'any' for backward compatibility
+// Accepts either DocumentContext instance or string path (legacy API)
 export async function findSheetIdWithFullDetection(
   docContextOrPath: any, // DocumentContext | string
   pageIndex: number,
