@@ -1,56 +1,64 @@
 # conset-pdf
 
-A CLI and library for building "latest-and-greatest" construction document sets by **replacing** updated sheets/sections from addenda and **inserting** new sheets/sections in the correct order, producing a final assembled PDF.
+Core library and CLI for building "latest-and-greatest" construction document sets. Provides APIs for merging addenda, splitting sets, detecting sheet IDs, and assembling documents.
 
-This repository contains the **core library** (`@conset-pdf/core`) and **CLI** (`@conset-pdf/cli`) packages. For the graphical user interface, see the separate [conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui) repository.
+## What Core Provides
 
-## What Problems Does It Solve?
+**Merge APIs**:
+- `mergeAddenda()` - Replace updated sheets from addenda, insert new sheets
+- `assembleSet()` - Assemble multiple PDFs into a single set
 
-Construction documents are updated via addenda. You need to:
-1. Replace updated sheets/sections from addenda
-2. Insert new sheets/sections in the correct order
-3. Maintain the original document structure
-4. Handle duplicate IDs, missing IDs, and ambiguous matches
+**Split APIs**:
+- `splitSet()` - Split PDF into discipline-specific subsets
 
-## Installation
+**Detection APIs**:
+- `DocumentContext` - PDF loading and text extraction
+- `RoiSheetLocator` - ROI-based sheet ID detection
+- `LegacyTitleblockLocator` - Auto-detected title block detection
+- `CompositeLocator` - ROI-first with legacy fallback
 
-### Core Library
+**Layout System**:
+- Layout profiles with ROI definitions
+- Profile loading and validation
+
+## Install
 
 ```bash
 npm install @conset-pdf/core
 ```
 
-### CLI Tool
+## Build
 
 ```bash
-npm install -g @conset-pdf/cli
-```
-
-Or install locally:
-
-```bash
-npm install @conset-pdf/cli
-```
-
-### Development Setup
-
-This repository uses npm workspaces. To set up for development:
-
-```bash
-git clone https://github.com/HLLMR/conset-pdf.git
-cd conset-pdf
 npm install
-npm run build
+npm run build          # Build all packages
+npm run build:core     # Build core only
+npm run build:cli      # Build CLI only
 ```
 
-## Requirements
+## Test
 
-- Node.js 18 or higher
-- Vector/text PDFs with embedded text (no OCR support in v1)
+```bash
+npm test               # Run all tests
+npm run test:smoke     # Smoke tests
+npm run verify:invariants  # Architecture invariants
+```
 
-## Quickstart
+## Examples
 
-**1. Preview detection on sample pages:**
+### CLI Usage
+
+**Merge addenda**:
+```bash
+conset-pdf merge-addenda \
+  --original Original.pdf \
+  --addenda Addendum1.pdf Addendum2.pdf \
+  --output Final.pdf \
+  --type drawings \
+  --layout layout.json
+```
+
+**Detect sheet IDs**:
 ```bash
 conset-pdf detect \
   --input Set.pdf \
@@ -59,101 +67,66 @@ conset-pdf detect \
   --output-preview preview.json
 ```
 
-**2. Adjust layout profile** (if needed) based on preview results.
-
-**3. Merge addenda with layout:**
+**Split set**:
 ```bash
-conset-pdf merge-addenda \
-  --original Original.pdf \
-  --addenda Addendum1.pdf Addendum2.pdf \
-  --output Final.pdf \
-  --type drawings \
-  --layout layout.json \
-  --regenerate-bookmarks \
-  --verbose
+conset-pdf split-set \
+  --input Set.pdf \
+  --output-dir ./output \
+  --type drawings
 ```
 
-For detailed usage instructions, see [docs/QUICK_START.md](docs/QUICK_START.md).
+### API Usage
+
+```typescript
+import { mergeAddenda, DocumentContext, RoiSheetLocator } from '@conset-pdf/core';
+import { loadLayoutProfile } from '@conset-pdf/core';
+
+// Load layout profile
+const layout = await loadLayoutProfile('layout.json');
+
+// Create locator
+const locator = new RoiSheetLocator(layout);
+
+// Merge addenda
+const report = await mergeAddenda({
+  originalPdfPath: 'Original.pdf',
+  addendumPdfPaths: ['Addendum1.pdf', 'Addendum2.pdf'],
+  outputPdfPath: 'Final.pdf',
+  type: 'drawings',
+  locator,
+  mode: 'replace+insert',
+  regenerateBookmarks: true,
+});
+
+console.log(`Merged ${report.stats.finalPagesPlanned} pages`);
+```
 
 ## Project Structure
 
-This repository is organized as a monorepo with the following packages:
-
-- **`packages/core`** - Core library (`@conset-pdf/core`)
-  - PDF processing, detection, merging logic
-  - Can be used as a library in other projects
-  - Exports: `mergeAddenda`, `splitSet`, `assembleSet`, locators, layout system
-
-- **`packages/cli`** - Command-line interface (`@conset-pdf/cli`)
-  - CLI commands: `merge-addenda`, `detect`, `split-set`, `assemble-set`
-  - Depends on `@conset-pdf/core`
-
-The root `src/` directory contains shared source code used by tests and legacy compatibility.
-
-## Related Projects
-
-- **[conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui)** - Electron-based graphical user interface
-  - Provides a wizard-style UI for PDF merge operations
-  - Uses `@conset-pdf/core` as a dependency
-  - Separate repository for GUI-specific code
+```
+conset-pdf/
+├── packages/
+│   ├── core/          # Core library (@conset-pdf/core)
+│   │   └── src/
+│   │       ├── analyze/      # PDF loading, text extraction
+│   │       ├── core/         # Merge/split/assemble logic
+│   │       ├── locators/     # Detection strategies
+│   │       ├── parser/       # ID parsing/normalization
+│   │       ├── layout/       # Layout profile system
+│   │       └── utils/        # Utilities
+│   └── cli/           # CLI tool (@conset-pdf/cli)
+└── docs/              # Documentation
+```
 
 ## Documentation
 
-- **[Quick Start Guide](docs/QUICK_START.md)** - Happy-path usage (ROI-first workflow)
-- **[Architecture](docs/ARCHITECTURE.md)** - Deep technical design + invariants
-- **[Output Structure](docs/OUTPUT_STRUCTURE.md)** - Files/folders produced by commands
-- **[Testing Plan](docs/TESTING_PLAN.md)** - How we verify correctness + invariants
-- **[Legacy Code](docs/LEGACY.md)** - What legacy code exists, why, and boundaries
+- **[Architecture](docs/ARCHITECTURE.md)** - Module overview, invariants, data flow
+- **[Public API](docs/PUBLIC_API.md)** - Stable API contracts
+- **[Quick Start](docs/QUICK_START.md)** - Happy-path usage
 
-## Limitations (v1)
+## Related Projects
 
-- **No OCR**: Only works with vector/text PDFs with embedded text
-- **Bookmark visibility**: pdf-lib has limited bookmark support; bookmarks may not be visible in all PDF viewers
-- **Multi-page sheets**: Each page is treated as its own sheet (multi-page detection is optional)
-- **No content editing**: Only page replacement/insertion, no text replacement or redaction
-
-## Dependencies
-
-- **pdfjs-dist** (^5.4.530) - PDF text extraction and rendering
-  - Uses legacy build for Node.js compatibility
-  - See [pdfjs-dist documentation](https://github.com/mozilla/pdf.js) for details
-
-- **pdf-lib** (^1.17.1) - PDF manipulation and assembly
-
-## Development
-
-### Building
-
-```bash
-# Build both packages
-npm run build
-
-# Build core only
-npm run build:core
-
-# Build CLI only
-npm run build:cli
-```
-
-### Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run smoke tests
-npm run test:smoke
-
-# Verify architecture invariants
-npm run verify:invariants
-```
-
-### Verification
-
-```bash
-# Full verification (build + test + invariants)
-npm run verify
-```
+- **[conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui)** - Electron GUI (uses `@conset-pdf/core`)
 
 ## License
 
