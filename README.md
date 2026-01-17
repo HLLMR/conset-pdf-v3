@@ -118,6 +118,8 @@ conset-pdf/
 └── docs/              # Documentation
 ```
 
+**Monorepo Structure**: This is an npm workspaces monorepo. Root-level commands (`npm install`, `npm run build`, `npm test`) are the authoritative workflows. Individual package scripts exist but are not the primary entry point.
+
 ## Documentation
 
 - **[Architecture](docs/ARCHITECTURE.md)** - Module overview, invariants, data flow
