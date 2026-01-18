@@ -11,6 +11,15 @@ import type {
   RowStatus,
 } from '../types.js';
 import type { MergePlan } from '../../core/planner.js';
+import type { ConsetDocType } from '../../index.js';
+import {
+  normalizeDrawingsDiscipline,
+  normalizeSpecsMasterformat,
+} from '../../standards/index.js';
+import type {
+  DrawingsDisciplineMeta,
+  SpecsMasterformatMeta,
+} from '../../standards/types.js';
 // MergeReport import reserved for future use when mapping execute results
 
 /**
@@ -32,11 +41,13 @@ type ParseInventoryItem = {
  * 
  * @param parseInventory - Inventory array from ParseResult
  * @param pdfPaths - Optional array of PDF paths [originalPath, ...addendumPaths] to create stable UIDs
+ * @param docType - Document type ('drawings' or 'specs') - used for discipline normalization
  * @returns Array of InventoryRowBase rows
  */
 export function mapParseInventoryToInventoryRows(
   parseInventory: ParseInventoryItem[],
-  pdfPaths?: string[]
+  pdfPaths?: string[],
+  docType?: ConsetDocType
 ): InventoryRowBase[] {
   // Helper to get a short identifier from PDF path
   const getPdfId = (index: number): string => {
@@ -89,7 +100,11 @@ export function mapParseInventoryToInventoryRows(
     // Store detected normalizedId separately (extend base type)
     const normalizedId = item.normalizedId || item.sheetId || undefined;
 
-    return {
+    const row: InventoryRowBase & {
+      normalizedId?: string;
+      discipline?: DrawingsDisciplineMeta;
+      specs?: SpecsMasterformatMeta;
+    } = {
       id: stableId,
       page: item.pageIndex + 1, // Convert 0-based to 1-based for display
       status,
@@ -99,7 +114,24 @@ export function mapParseInventoryToInventoryRows(
       tags: item.source ? [item.source] : undefined,
       // Extend with normalizedId (not in base type, but used by merge workflow)
       ...(normalizedId ? { normalizedId } : {}),
-    } as InventoryRowBase & { normalizedId?: string };
+    };
+
+    // Add discipline metadata for drawings docType only
+    if (docType === 'drawings') {
+      row.discipline = normalizeDrawingsDiscipline({
+        normalizedId: row.normalizedId ?? null,
+        title: item.title ?? item.context ?? null,
+      });
+    }
+
+    // Add specs metadata for specs docType only
+    if (docType === 'specs') {
+      row.specs = normalizeSpecsMasterformat({
+        normalizedId: row.normalizedId ?? null,
+      });
+    }
+
+    return row;
   });
 }
 

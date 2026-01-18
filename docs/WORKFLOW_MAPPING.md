@@ -45,6 +45,8 @@ The `ParseResult.inventory` structure contains per-page detection results:
 - `confidence` = `confidence ?? 0`
 - `source` = `source` (detection method)
 - `notes` = `warning || context`
+- `discipline` = added for `docType === 'drawings'` (see STANDARDS.md)
+- `specs` = added for `docType === 'specs'` (see STANDARDS.md)
 
 ## MergeReport.warnings → InventoryResult.issues
 

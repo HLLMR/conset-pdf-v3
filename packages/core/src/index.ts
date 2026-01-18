@@ -116,3 +116,6 @@ export {
 
 // Export narrative processing
 export * from './narrative/index.js';
+
+// Export standards module
+export * from './standards/index.js';

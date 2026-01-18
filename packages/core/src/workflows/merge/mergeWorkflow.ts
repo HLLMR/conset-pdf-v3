@@ -110,7 +110,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
     // Map to workflow types using actual detection inventory
     // Pass PDF paths to create stable UIDs
     const allPdfPaths = [originalPdfPath, ...addendumPdfPaths];
-    const rows = mapParseInventoryToInventoryRows(parseInventory, allPdfPaths);
+    const rows = mapParseInventoryToInventoryRows(parseInventory, allPdfPaths, docType);
     const summary = mapMergePlanToSummary(plan);
 
     // Map warnings to issues
