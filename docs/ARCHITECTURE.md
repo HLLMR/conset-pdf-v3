@@ -7,16 +7,30 @@
 ```
 packages/core/src/
 ├── analyze/           # PDF loading, text extraction, caching
+│   ├── documentContext.ts  # Document-level state and caching
+│   ├── pageContext.ts      # Per-page caching
+│   └── readingOrder.ts     # Visual reading-order assembly helpers
 ├── core/             # Business logic (merge/split/assemble)
 ├── locators/         # Detection strategies (pluggable)
 ├── parser/           # ID parsing/normalization (pure)
 ├── layout/           # Layout profile system
+├── narrative/        # Narrative PDF processing (advisory analysis)
+│   ├── text-extract.ts     # Extract text from narrative PDFs
+│   ├── parse-algorithmic.ts # Parse narrative into instruction sets
+│   ├── normalize.ts        # Normalize sheet/spec IDs from narrative
+│   └── types.ts            # Narrative types and interfaces
 ├── workflows/        # Workflow engine (analyze/execute pattern)
 │   ├── types.ts      # Core workflow types (InventoryResult, CorrectionOverlay, etc.)
 │   ├── engine.ts     # WorkflowRunner factory
 │   ├── merge/         # Merge workflow implementation
 │   └── mappers/       # Mapping from legacy structures to workflow types
-└── utils/            # Utilities (bookmarks, PDF helpers)
+└── utils/            # Utilities (bookmarks, PDF helpers, sorting)
+    ├── bookmarks.ts
+    ├── bookmarkWriter.ts
+    ├── pdfLibBookmarkWriter.ts
+    ├── pdf.ts
+    ├── fs.ts
+    └── sort.ts
 ```
 
 ### Analyze (`analyze/`)
@@ -34,6 +48,11 @@ packages/core/src/
   - Text items (extracted once, cached)
   - Plain text (derived)
   - ROI-filtered views (derived)
+
+- **`readingOrder.ts`**: Visual reading-order assembly
+  - Handles text runs out of visual order from PDF.js `getTextContent()`
+  - Reconstructs wrapped titles correctly
+  - Used by `RoiSheetLocator` for text assembly
 
 **Rule**: Only `analyze/` may load PDFs or create PDF.js documents.
 
@@ -67,10 +86,10 @@ packages/core/src/
 **Purpose**: Pluggable detection strategies
 
 - **`SheetLocator`**: Interface contract
-- **`RoiSheetLocator`**: ROI-based detection
-- **`LegacyTitleblockLocator`**: Auto-detected title block
-- **`SpecsSectionLocator`**: Specs section detection
-- **`CompositeLocator`**: ROI-first with fallback
+- **`RoiSheetLocator`**: ROI-based detection (drawings, requires layout profile)
+- **`LegacyTitleblockLocator`**: Auto-detected title block (drawings fallback)
+- **`SpecsSectionLocator`**: Specs section ID detection (text-based, no layout profile)
+- **`CompositeLocator`**: ROI-first with fallback (drawings only)
 
 **Rule**: Locators are pure (no IO). Consume cached `PageContext` only.
 
@@ -78,9 +97,9 @@ packages/core/src/
 
 **Purpose**: Pure ID parsing/normalization
 
-- **`normalize.ts`**: ID normalization (canonical dash format)
-- **`drawingsSheetId.ts`**: Drawing sheet ID patterns
-- **`specsSectionId.ts`**: Spec section ID patterns
+- **`normalize.ts`**: ID normalization (canonical dash format for drawings, space-separated for specs)
+- **`drawingsSheetId.ts`**: Drawing sheet ID patterns (e.g., "A-101", "M1-01")
+- **`specsSectionId.ts`**: Spec section ID patterns (e.g., "23 02 00", "00 31 21")
 
 **Rule**: Parsers are pure functions (no IO).
 
@@ -91,14 +110,45 @@ packages/core/src/
 - **`types.ts`**: Layout profile schema, ROI types
 - **`load.ts`**: Load profiles from JSON or create inline
 
+### Narrative (`narrative/`)
+
+**Purpose**: Extract and parse instructions from narrative PDFs (advisory analysis)
+
+- **`text-extract.ts`**: Extract page-aware text from narrative PDFs using `DocumentContext`
+  - Uses `DocumentContext` to comply with architecture constraints
+  - Generates file hash for change detection
+  - Returns `NarrativeTextDocument` with page-aware text
+
+- **`parse-algorithmic.ts`**: Deterministic parsing of narrative text into instruction sets
+  - No LLM usage - pure algorithmic pattern matching
+  - Extracts drawing and spec section revisions
+  - Returns `NarrativeInstructionSet` with instructions and parse issues
+
+- **`normalize.ts`**: Normalize sheet IDs and spec section IDs from narrative text
+  - `normalizeSheetId()`: Normalize drawing sheet IDs from narrative
+  - `normalizeSpecSectionId()`: Normalize spec section IDs from narrative
+
+- **`types.ts`**: Narrative types and interfaces
+  - `NarrativeTextDocument`: Extracted text with page awareness
+  - `NarrativeInstructionSet`: Parsed instructions (drawings, specs, issues)
+  - `DrawingInstruction`, `SpecInstruction`: Individual instruction types
+
+**Status**: Advisory only - narrative instructions are extracted and parsed but conflict resolution not yet implemented. Used in merge workflow `analyze()` phase to provide advisory information in `InventoryResult.narrative`.
+
+**Rule**: Narrative processing uses `DocumentContext` for PDF operations (complies with single-load pipeline).
+
 ### Utils (`utils/`)
 
 **Purpose**: Utilities
 
 - **`bookmarks.ts`**: Bookmark generation
 - **`bookmarkWriter.ts`**: Bookmark writing interface
+- **`pdfLibBookmarkWriter.ts`**: pdf-lib implementation of bookmark writer (used by `applyPlan.ts`)
 - **`pdf.ts`**: PDF helpers (legacy fallback)
-- **`fs.ts`**: File system helpers
+- **`fs.ts`**: File system helpers (`fileExists`, `writeJson`)
+- **`sort.ts`**: Natural sort comparator for construction document IDs
+  - Handles mixed alphanumeric strings like "M1-01A", "E2.101", "23 09 00"
+  - Tokenizes strings into alternating alpha and numeric segments
 
 ## Intentional `any` Policy
 

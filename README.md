@@ -6,9 +6,11 @@ Core library and CLI for building "latest-and-greatest" construction document se
 
 **✅ Fully Implemented:**
 - Merge workflow (Update Documents) - Complete workflow engine implementation
+  - **Drawings**: ROI-based detection with layout profiles (or legacy fallback)
+  - **Specs**: Text-based section ID detection
 - CLI commands for all operations
-- ROI-based sheet detection with layout profiles
-- Legacy detection fallback
+- ROI-based sheet detection with layout profiles (drawings)
+- Legacy detection fallback (drawings)
 - Inventory analysis with corrections support
 
 **⚠️ Partially Implemented:**
@@ -43,10 +45,15 @@ Both CLI and GUI applications route through the same workflow engine for consist
 - `RoiSheetLocator` - ROI-based sheet ID detection
 - `LegacyTitleblockLocator` - Auto-detected title block detection
 - `CompositeLocator` - ROI-first with legacy fallback
+- `SpecsSectionLocator` - Specs section ID detection
 
 **Layout System**:
 - Layout profiles with ROI definitions
 - Profile loading and validation
+
+**Narrative Processing**:
+- `extractNarrativeTextFromPdf()` - Extract text from narrative PDFs
+- `parseNarrativeAlgorithmic()` - Parse narrative instructions (advisory only)
 
 **Workflow Engine**:
 - `createMergeWorkflowRunner()` - Merge workflow with analyze/execute pattern
@@ -203,6 +210,7 @@ conset-pdf/
 │   │       ├── locators/     # Detection strategies
 │   │       ├── parser/       # ID parsing/normalization
 │   │       ├── layout/       # Layout profile system
+│   │       ├── narrative/   # Narrative PDF processing
 │   │       ├── workflows/    # Workflow engine (analyze/execute pattern)
 │   │       └── utils/        # Utilities
 │   └── cli/           # CLI tool (@conset-pdf/cli)

@@ -40,8 +40,10 @@ conset-pdf merge-addenda \
 **Required Arguments**:
 - `--original <path>`: Path to original PDF
 - `--addenda <paths...>`: Paths to addendum PDFs (one or more, in chronological order)
-- `--output <path>`: Path to output PDF (not used in `--dry-run` mode)
+- `--output <path>`: Path to output PDF (required but not used in `--dry-run` mode)
 - `--type <type>`: Document type (`drawings` or `specs`)
+  - **`drawings`**: Uses ROI-based detection with layout profiles (or legacy fallback)
+  - **`specs`**: Uses text-based section ID detection (layout profiles not supported/ignored)
 
 **Options**:
 - `--report <path>`: Path to write JSON report
@@ -117,7 +119,7 @@ conset-pdf merge-addenda \
 
 **Examples**:
 
-Basic merge:
+Basic merge (drawings):
 ```bash
 conset-pdf merge-addenda \
   --original Original.pdf \
@@ -126,6 +128,17 @@ conset-pdf merge-addenda \
   --type drawings \
   --layout layout.json
 ```
+
+Basic merge (specs):
+```bash
+conset-pdf merge-addenda \
+  --original Original-Specs.pdf \
+  --addenda Addendum1-Specs.pdf \
+  --output Final-Specs.pdf \
+  --type specs
+```
+
+**Note**: Specs merging uses text-based section ID detection and does not require (or support) layout profiles. The `--layout` option is ignored for specs type.
 
 Dry-run inventory analysis:
 ```bash
@@ -217,17 +230,43 @@ conset-pdf detect \
         "found": true,
         "value": "Floor Plan - First Floor"
       },
-      "warnings": []
+      "warnings": [],
+      "context": "Additional context from detection"
+    },
+    {
+      "pageIndex": 1,
+      "pageNumber": 2,
+      "sheetId": {
+        "found": false,
+        "error": "No sheet ID found",
+        "failureReason": "ROI_EMPTY",
+        "method": "roi"
+      },
+      "sheetTitle": {
+        "found": false,
+        "error": "No title found"
+      },
+      "warnings": ["ROI region is empty"]
     }
   ],
   "summary": {
-    "totalPages": 3,
-    "pagesWithId": 3,
-    "pagesWithTitle": 3,
-    "successRate": 1.0
+    "totalPages": 2,
+    "pagesWithId": 1,
+    "pagesWithTitle": 1,
+    "successRate": 0.5
   }
 }
 ```
+
+**Failure Reasons** (when `sheetId.found: false`):
+- `ROI_EMPTY`: ROI region contains no text
+- `ROI_LOW_TEXT_DENSITY`: ROI region has insufficient text
+- `ROI_NO_PATTERN_MATCH`: No pattern match found in ROI
+- `ROI_PREFIX_REJECTED`: Prefix validation failed
+- `ROI_MULTIPLE_MATCHES`: Multiple matches found (ambiguous)
+- `ROI_FAILED`: General ROI detection failure
+- `LEGACY_FALLBACK`: Fell back to legacy detection
+- `NO_MATCH`: No match found (no warnings)
 
 **Examples**:
 

@@ -8,16 +8,27 @@ This document describes how we verify correctness and maintain architecture inva
 
 ## Test Organization
 
+**Current Structure**:
 ```
 tests/
 ├── smoke/                    # Fast, CI-friendly invariant checks
 │   ├── architecture-invariants.test.ts
 │   └── core-behaviors.test.ts
-├── unit/                     # Unit tests for individual modules
-├── integration/              # Integration tests for workflows
-├── fixtures/                 # Test PDFs and data files
-└── e2e/                      # End-to-end CLI tests
+├── narrative/                # Narrative processing tests
+│   ├── normalize.test.ts
+│   ├── parse-algorithmic.test.ts
+│   └── text-extract.test.ts
+├── workflows/                # Workflow engine tests
+│   └── merge-narrative.test.ts
+└── fixtures/                 # Test PDFs and data files
+    └── narratives/
+        └── Add3 Narrative.pdf
 ```
+
+**Planned Structure** (not yet implemented):
+- `tests/unit/` - Unit tests for individual modules
+- `tests/integration/` - Integration tests for workflows
+- `tests/e2e/` - End-to-end CLI tests
 
 ## Smoke Tests
 
@@ -85,31 +96,67 @@ npm run verify:invariants
 
 ## Test Categories
 
-### Unit Tests
+### Smoke Tests (Implemented)
 
-**Location**: `tests/unit/`
+**Location**: `tests/smoke/`
+
+**Status**: ✅ Implemented
 
 **Coverage**:
+- Architecture invariant verification
+- Core behavior verification (DocumentContext, PageContext, locators)
+
+### Narrative Tests (Implemented)
+
+**Location**: `tests/narrative/`
+
+**Status**: ✅ Implemented
+
+**Coverage**:
+- Text extraction from narrative PDFs
+- Narrative parsing (algorithmic)
+- Text normalization
+
+### Workflow Tests (Implemented)
+
+**Location**: `tests/workflows/`
+
+**Status**: ✅ Implemented
+
+**Coverage**:
+- Merge workflow with narrative integration
+
+### Unit Tests (Planned)
+
+**Location**: `tests/unit/` (to be created)
+
+**Status**: ⏳ Planned
+
+**Planned Coverage**:
 - Parser tests: ID parsing and normalization
 - Layout tests: Profile loading and validation
 - Locator tests: Detection strategies
 - Analysis tests: Caching and context management
 
-### Integration Tests
+### Integration Tests (Planned)
 
-**Location**: `tests/integration/`
+**Location**: `tests/integration/` (to be created)
 
-**Coverage**:
+**Status**: ⏳ Planned
+
+**Planned Coverage**:
 - Merge-addenda: Replace, insert, multiple addenda
 - Detect command: Preview functionality
 - Split-set: Split operations
 - Assemble-set: Reassembly operations
 
-### End-to-End Tests
+### End-to-End Tests (Planned)
 
-**Location**: `tests/e2e/`
+**Location**: `tests/e2e/` (to be created)
 
-**Coverage**:
+**Status**: ⏳ Planned
+
+**Planned Coverage**:
 - CLI command validation
 - Real-world scenarios
 - Performance validation

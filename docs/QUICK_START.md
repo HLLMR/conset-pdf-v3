@@ -58,7 +58,7 @@ conset-pdf merge-addenda \
   --output conset-output/merged/IFC+Add4.pdf \
   --type drawings \
   --layout layouts/my-project-layout.json \
-  --regenerate-bookmarks \
+  --bookmark \
   --report conset-output/reports/merge-add4-report.json \
   --inventory-dir conset-output/inventories \
   --verbose
@@ -66,7 +66,7 @@ conset-pdf merge-addenda \
 
 **Expected Output:**
 - Merged PDF with replaced and inserted pages in correct order
-- Bookmarks regenerated from detected sheet IDs (if `--regenerate-bookmarks` enabled)
+- Bookmarks regenerated from detected sheet IDs and titles (if `--bookmark` enabled)
 - JSON report with merge statistics and warnings
 - Inventory files showing detected IDs per page
 

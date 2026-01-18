@@ -45,14 +45,24 @@ project-root/
 - Contains: Detected sheet IDs, titles, confidence scores, parse times
 
 ### Preview Files
-- Pattern: `{description}-preview.json`
-- Location: `conset-output/previews/`
-- Contains: Detection results from `detect` command
+- Pattern: `{source-filename}-preview-{timestamp}.json` (when using `--preview-dir`) or user-specified path
+- Location: `conset-output/previews/` (or user-specified via `--output-preview` or `--preview-dir`)
+- Contains: Detection results from `detect` command (see CLI.md for exact JSON structure)
 
 ### Report Files
-- Pattern: `merge-{description}-report.json` or `merge-{date}-report.json`
-- Location: `conset-output/reports/`
-- Contains: Merge operation summary, replacements, insertions
+- Pattern: User-specified path (via `--report` option)
+- Location: `conset-output/reports/` (recommended) or user-specified
+- Contains: Merge operation summary with structure:
+  - `kind`: Document type (`"drawings"` or `"specs"`)
+  - `originalPath`: Path to original PDF
+  - `addendumPaths`: Array of addendum PDF paths
+  - `outputPath`: Path to output PDF (if not dry-run)
+  - `replaced`: Array of replacement operations
+  - `inserted`: Array of insertion operations
+  - `appendedUnmatched`: Array of unmatched pages
+  - `warnings`: Array of warning strings
+  - `notices`: Optional array of informational notices
+  - `stats`: Statistics (originalPages, finalPagesPlanned, parseTimeMs, mergeTimeMs)
 
 ### Merged PDFs
 - Pattern: User-defined (e.g., `IFC+Add4.pdf`, `Final-Set.pdf`)
@@ -113,11 +123,12 @@ Inventory files are automatically generated for each input PDF during merge oper
   "inventory": [
     {
       "pageIndex": 0,
-      "sheetId": null,
-      "normalizedId": null,
-      "title": null,
-      "confidence": null,
-      "source": null
+      "sheetId": "COVER",
+      "normalizedId": "COVER",
+      "title": "Cover Page",
+      "confidence": 1.0,
+      "source": "cover-page",
+      "context": "Cover page (no title block detected)"
     },
     {
       "pageIndex": 1,
@@ -125,16 +136,39 @@ Inventory files are automatically generated for each input PDF during merge oper
       "normalizedId": "M1-01",
       "title": "Floor Plan - First Floor",
       "confidence": 0.95,
-      "source": "ROI-1"
+      "source": "roi"
+    },
+    {
+      "pageIndex": 4,
+      "sheetId": "A-101",
+      "normalizedId": "A-101",
+      "confidence": 0.75,
+      "source": "composite-fallback-legacy-titleblock",
+      "warning": "ROI detection failed, using legacy fallback"
     }
   ],
   "performance": {
     "totalParseTimeMs": 1250,
     "averageTimePerPageMs": 10.4,
-    "slowestPages": [...]
+    "slowestPages": [
+      {
+        "pageIndex": 15,
+        "parseTimeMs": 45
+      }
+    ]
   }
 }
 ```
+
+**Inventory item fields:**
+- `pageIndex`: 0-based page index
+- `sheetId`: Detected sheet ID (raw string, or `"COVER"` for cover pages)
+- `normalizedId`: Normalized sheet ID
+- `title`: Sheet title (if detected)
+- `confidence`: Detection confidence (0.0-1.0)
+- `source`: Detection method (`"roi"`, `"legacy-titleblock"`, `"composite-fallback-legacy-titleblock"`, `"cover-page"`, etc.)
+- `context`: Additional context string (optional)
+- `warning`: Warning message (optional, present when detection had issues)
 
 ## Benefits of Organized Structure
 
@@ -173,4 +207,4 @@ source-pdfs/
 │   └── IFC Set_FULL_2025-10-01-inventory.json  # Auto-generated
 ```
 
-This is the default behavior. Use `--output-dir` (future feature) to organize outputs.
+This is the default behavior. Use `--inventory-dir` to organize inventory files into a specific directory.

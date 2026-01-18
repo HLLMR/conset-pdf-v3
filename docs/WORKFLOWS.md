@@ -18,6 +18,15 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 
 **Status**: ✅ **Implemented** (workflow engine + CLI + GUI)
 
+**Document Types Supported**:
+- **Drawings** (`docType: 'drawings'`): Uses ROI-based detection (with layout profiles) or legacy title block detection
+  - Supports layout profiles for ROI-based detection
+  - Falls back to legacy title block detection if no profile provided
+- **Specs** (`docType: 'specs'`): Uses text-based section ID detection (`SpecsSectionLocator`)
+  - Detects section IDs (e.g., "23 02 00", "00 31 21") from page text
+  - Does not support layout profiles (uses text-based detection only)
+  - Same merge logic as drawings (replace/insert/append modes work identically)
+
 ### Inputs
 
 **Analyze Input** (`MergeAnalyzeInput`):
@@ -129,20 +138,21 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 ### Execute Outputs
 
 **Execute Result** (`ExecuteResult`):
-- **Outputs**: File paths
+- **Outputs**: File paths (Record<string, string>)
   - `outputPdfPath`: Path to merged PDF
-  - `drawings` or `specs`: Type-specific key (same path)
+  - `drawings` or `specs`: Type-specific key (same path, based on docType)
 
 - **Summary**: Execution statistics
   - `success`: `true`
   - `replaced`: Number of sheets replaced
   - `inserted`: Number of sheets inserted
-  - `unmatched`: Number of unmatched pages
+  - `unmatched`: Number of unmatched addendum groups (count of `appendedUnmatched` array items)
   - `finalPages`: Final page count
   - `parseTimeMs`: Time spent on detection/parsing
   - `mergeTimeMs`: Time spent on PDF assembly
 
-- **Warnings**: Array of warning messages (if any)
+- **Warnings**: Array of warning messages (if any, undefined if empty)
+- **Errors**: Array of error messages (currently always undefined)
 
 ### Implementation Details
 

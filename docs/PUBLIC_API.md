@@ -142,7 +142,14 @@ class DocumentContext {
   async getPageContext(pageIndex: number): Promise<PageContext>;
   
   // Text extraction (demand-driven)
-  async extractTextForPages(pageIndexes: number[]): Promise<void>;
+  async extractTextForPage(pageIndex: number): Promise<PageContext>;
+  async extractTextForPages(pageIndexes: number[]): Promise<Map<number, PageContext>>;
+  
+  // PDF bytes access (for hashing/metadata)
+  getPdfBytes(): Uint8Array;
+  
+  // Path access
+  get pdfPath(): string;
 }
 ```
 
@@ -153,14 +160,38 @@ class DocumentContext {
 ```typescript
 class PageContext {
   // Page info (cached)
+  get pageIndex(): number;
   get pageWidth(): number;
   get pageHeight(): number;
   get rotation(): number;
+  get isLandscape(): boolean;
   
-  // Text access (cached)
-  async getText(): Promise<string>;
-  async getTextItems(): Promise<TextItem[]>;
-  async getTextItemsInROI(roi: NormalizedROI): Promise<TextItem[]>;
+  // Page info (memoized)
+  getInfo(): { width: number; height: number; rotation: number; isLandscape: boolean };
+  
+  // Text access (cached, synchronous)
+  getText(): string;
+  getTextItems(): TextItemWithPosition[];
+  getVisualTextItems(): Array<{ str: string; x: number; y: number; width: number; height: number }>;
+  
+  // ROI text access
+  getTextItemsInROI(
+    roi: NormalizedROI,
+    options?: {
+      padNorm?: number;
+      intersectionMode?: 'strict' | 'overlap';
+      overlapThreshold?: number;
+    }
+  ): TextItemWithPosition[];
+  
+  // Title block (cached)
+  getTitleBlockBounds(): TitleBlockBounds | null;
+  hasTitleBlockBounds(): boolean;
+  setTitleBlockBounds(bounds: TitleBlockBounds): void;
+  
+  // Detection cache
+  setDetectionResult(key: string, result: any): void;
+  getDetectionResult<T>(key: string): T | undefined;
 }
 ```
 
@@ -179,6 +210,7 @@ interface SheetLocator {
 - `RoiSheetLocator` - ROI-based detection
 - `LegacyTitleblockLocator` - Auto-detected title block
 - `CompositeLocator` - ROI-first with fallback
+- `SpecsSectionLocator` - Specs section detection
 
 ## Layout Profile Schema
 
@@ -234,6 +266,11 @@ const inventory = await runner.analyze({
   originalPdfPath: 'original.pdf',
   addendumPdfPaths: ['addendum.pdf'],
   profile: layoutProfile,
+  narrativePdfPath: 'narrative.pdf', // Optional: advisory analysis
+  options: {
+    verbose: true,
+    inventoryOutputDir: './inventories',
+  },
 });
 
 // Apply corrections
@@ -290,19 +327,71 @@ interface InventoryResult {
 
 ```typescript
 interface CorrectionOverlay {
-  ignoredRowIds: string[];  // Rows to ignore (visible but excluded from counts)
+  laneId?: string;  // Optional lane identifier
+  ignoredRowIds?: string[];  // Rows to ignore (visible but excluded from counts)
+  ignoredPages?: number[];  // Page numbers to ignore
   overrides: {
     [rowId: string]: {
-      fields: {
-        normalizedId?: string;  // Override detected ID
-        sheetId?: string;       // Alternative override
-      };
+      action?: string;  // Action override (future)
+      fields?: Record<string, unknown>;  // Field overrides (normalizedId, sheetId, etc.)
+      resolvedConflictChoice?: 'narrative' | 'detected' | 'manual';  // Conflict resolution
     };
   };
+  notes?: string;  // Optional notes
 }
 ```
 
 **Current limitations**:
-- Narrative parsing: Not implemented (narrative path stored only)
+- Narrative parsing: Advisory only (narrative path stored, conflicts not generated)
 - Action overrides: Not implemented (only ID overrides supported)
 - Multi-lane merge: Single doc-type only (`'drawings'` or `'specs'`, not `'both'` in core)
+
+## Additional Exports
+
+### Narrative Processing
+
+```typescript
+// Extract text from narrative PDF
+import { extractNarrativeTextFromPdf } from '@conset-pdf/core';
+const narrativeDoc = await extractNarrativeTextFromPdf('narrative.pdf');
+
+// Parse narrative instructions
+import { parseNarrativeAlgorithmic } from '@conset-pdf/core';
+const instructions = parseNarrativeAlgorithmic(narrativeDoc);
+```
+
+### Utilities
+
+```typescript
+import { fileExists, writeJson } from '@conset-pdf/core';
+
+// Check if file exists
+const exists = await fileExists('path/to/file.pdf');
+
+// Write JSON file
+await writeJson('output.json', data);
+```
+
+### Layout Profile Loading
+
+```typescript
+import { loadLayoutProfile, createInlineLayout } from '@conset-pdf/core';
+
+// Load from file
+const profile = await loadLayoutProfile('layout.json');
+
+// Create inline from ROI strings
+const inlineProfile = createInlineLayout(
+  '0.1,0.05,0.3,0.05',  // sheet-id-roi
+  '0.1,0.1,0.6,0.05'    // sheet-title-roi (optional)
+);
+```
+
+### Workflow Runner Factory
+
+```typescript
+import { createWorkflowRunner } from '@conset-pdf/core';
+
+// Generic workflow runner (for custom workflows)
+const runner = createWorkflowRunner('merge', workflowImpl);
+```
