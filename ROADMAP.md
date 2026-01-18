@@ -2,6 +2,11 @@
 
 **Last updated**: 2026-01-17
 
+**Recent Updates**:
+- ✅ Narrative validation complete (Commits A4-A6)
+- ✅ Standards module complete (UCS/CSI)
+- ✅ GUI integration: Narrative validation UI, Set Order sorting, single addendum workflow
+
 This document provides a comprehensive view of what's complete, what's in progress, and what remains to be implemented in the conset-pdf project.
 
 ## Overview
@@ -38,13 +43,71 @@ This document provides a comprehensive view of what's complete, what's in progre
 
 **Documentation**: Fully documented in `docs/WORKFLOWS.md`, `docs/CLI.md`, `docs/PUBLIC_API.md`
 
+### Standards Module (UCS/CSI)
+
+**Status**: ✅ **100% Complete**
+
+**What's Done**:
+- ✅ **Drawings Standards**: UDS-style discipline identification
+  - `normalizeDrawingsDiscipline()` - Normalizes discipline from sheet ID and title
+  - Discipline designator identification (G, C, L, A, I, S, M, P, E, F, T)
+  - Multi-letter alias handling (FP, DDC, ATC, SEC, AV, IT, etc.)
+  - Heuristic-based disambiguation (Controls vs Civil)
+  - Discipline-based sorting with `compareDrawingsRows()`
+- ✅ **Specs Standards**: CSI MasterFormat classification
+  - `normalizeSpecsMasterformat()` - Normalizes MasterFormat from section ID
+  - Division identification (00-49) with titles
+  - Section classification (DD SS SS format)
+  - MasterFormat-based sorting with `compareSpecsRows()`
+- ✅ **Integration**: Standards metadata added to inventory rows
+  - Drawings rows include optional `discipline` field
+  - Specs rows include optional `specs` field
+  - Integrated into merge workflow mapper
+  - Non-breaking (optional fields only)
+
+**Files**:
+- `packages/core/src/standards/` (complete module)
+- `packages/core/src/standards/normalizeDrawingsDiscipline.ts`
+- `packages/core/src/standards/normalizeSpecsMasterformat.ts`
+- `packages/core/src/standards/compare.ts`
+- `packages/core/src/standards/datasets/` (designators, order heuristic, divisions)
+- `packages/core/src/workflows/mappers/merge.ts` (integration)
+
+**Documentation**: Fully documented in `docs/STANDARDS.md`
+
+### Narrative PDF Processing
+
+**Status**: ✅ **100% Complete** (Validation Implemented)
+
+**What's Done**:
+- ✅ Text extraction from narrative PDFs (`narrative/text-extract.ts`)
+- ✅ Algorithmic parsing (`narrative/parse-algorithmic.ts`)
+- ✅ **Deterministic validation against inventory** (`narrative/validate.ts`)
+  - Compares narrative claims against detected inventory
+  - Identifies discrepancies between narrative and detected changes
+  - Generates `NarrativeIssue[]` with issue codes
+  - Near-match suggestions using Levenshtein similarity
+  - Suggested corrections (not auto-applied)
+- ✅ Integration into merge workflow `analyze()`
+  - Validation report included in `InventoryResult.narrativeValidation`
+
+**Files**:
+- `packages/core/src/narrative/text-extract.ts` ✅
+- `packages/core/src/narrative/parse-algorithmic.ts` ✅
+- `packages/core/src/narrative/normalize.ts` ✅
+- `packages/core/src/narrative/validate.ts` ✅
+- `packages/core/src/narrative/types.ts` ✅
+- `packages/core/src/workflows/merge/mergeWorkflow.ts` ✅
+
+**Documentation**: Architecture documented in `docs/ARCHITECTURE.md`
+
 ---
 
 ## ⚠️ Partially Complete
 
 ### Narrative PDF Processing
 
-**Status**: ⚠️ **Phase 1 Complete, Phase 2 Not Started**
+**Status**: ✅ **Phase 1 & 2 Complete** (Validation Implemented)
 
 **What's Done**:
 - ✅ Text extraction from narrative PDFs (`narrative/text-extract.ts`)
@@ -55,27 +118,29 @@ This document provides a comprehensive view of what's complete, what's in progre
   - Extracts drawing and spec instructions
   - Normalizes sheet/spec IDs
   - Produces `NarrativeInstructionSet` with issues
+- ✅ **Deterministic validation against inventory** (`narrative/validate.ts`)
+  - Compares narrative claims against detected inventory
+  - Identifies discrepancies between narrative and detected changes
+  - Generates `NarrativeIssue[]` with issue codes
+  - Near-match suggestions using Levenshtein similarity for typos/spacing variations
+  - Suggested corrections (not auto-applied)
 - ✅ Integration into merge workflow `analyze()`
   - Narrative PDF can be provided as optional input
-  - Extracted and parsed during analyze
-  - Included in `InventoryResult.narrative` (advisory only, read-only)
+  - Extracted, parsed, and validated during analyze
+  - Included in `InventoryResult.narrative` and `InventoryResult.narrativeValidation` (advisory only, read-only)
 
-**What's Missing**:
-- ❌ **Validation vs Inventory**: Compare narrative claims against detection inventory
-- ❌ **Conflict Detection**: Identify discrepancies between narrative and detected changes
-- ❌ **Issue Generation**: Produce `NarrativeIssue[]` in analyze output
-- ❌ **Near-Match Suggestions**: Fuzzy matching for typos/spacing variations
-- ❌ **Suggested Corrections**: Narrative-derived correction suggestions (not auto-applied)
+**What's Optional**:
 - ❌ **LLM-Assisted Extraction**: Optional LLM provider for better parsing (planned but not required)
 
 **Files**:
 - `packages/core/src/narrative/text-extract.ts` ✅
 - `packages/core/src/narrative/parse-algorithmic.ts` ✅
 - `packages/core/src/narrative/normalize.ts` ✅
+- `packages/core/src/narrative/validate.ts` ✅
 - `packages/core/src/narrative/types.ts` ✅
-- `packages/core/src/workflows/merge/mergeWorkflow.ts` (partial integration) ⚠️
+- `packages/core/src/workflows/merge/mergeWorkflow.ts` ✅ (full integration)
 
-**Current Behavior**: Narrative is extracted and parsed but not validated against inventory. No issues or conflicts are generated. The narrative data is available in analyze output but not actively used.
+**Current Behavior**: Narrative is extracted, parsed, and validated against inventory. Validation issues are included in `InventoryResult.narrativeValidation` with issue codes, near-match suggestions, and suggested corrections. The validation is advisory only and does not modify detection results.
 
 ---
 
@@ -205,12 +270,12 @@ The narrative module already exists with stable types:
 
 #### Commit A4 — Deterministic Validation vs Inventory
 
-**Status**: ❌ **Not Started**
+**Status**: ✅ **Complete**
 
 **Goal**: Compare narrative claims against detection inventory and generate issues.
 
 **Implementation**:
-- Create `validateNarrativeAgainstInventory()` function
+- ✅ Created `validateNarrativeAgainstInventory()` function
 - Input: `NarrativeInstructionSet` + `InventoryResult`
 - Output: `NarrativeValidationReport` with:
   - `issues: NarrativeIssue[]`
@@ -222,7 +287,7 @@ The narrative module already exists with stable types:
    - Specs: normalize to `NN NN NN` (e.g., `230900` → `23 09 00`)
 2. Exact match first on `row.normalizedId`
 3. If no exact match:
-   - Fuzzy candidates using edit distance / token similarity
+   - Fuzzy candidates using Levenshtein edit distance / token similarity
    - Return top N candidates as `nearMatches`
 4. Never auto-map; only suggest
 
@@ -232,47 +297,47 @@ The narrative module already exists with stable types:
 - `NARR_AMBIGUOUS_MATCH`: Multiple candidates
 - `NARR_INVENTORY_NOT_MENTIONED`: Detected changes not referenced in narrative (warn only)
 
-**Files to Create**:
-- `packages/core/src/narrative/validate.ts` (new)
-- Update `narrative/types.ts` to add `NarrativeValidationReport`, `NarrativeIssue`
+**Files Created**:
+- ✅ `packages/core/src/narrative/validate.ts`
+- ✅ Updated `narrative/types.ts` with `NarrativeValidationReport`, `NarrativeIssue`
 
 #### Commit A5 — Integrate Validation into Merge Workflow `analyze()`
 
-**Status**: ❌ **Not Started**
+**Status**: ✅ **Complete**
 
 **Goal**: `analyze()` returns narrative issues when narrative PDF exists.
 
 **Implementation**:
-- In `mergeWorkflow.ts` `analyze()`:
+- ✅ In `mergeWorkflow.ts` `analyze()`:
   - After inventory detection
   - If narrative provided:
     - Extract narrative → validate vs inventory
-    - Append issues into analyze output (do not alter detection)
-- Extend `InventoryResult` to include:
+    - Append validation report into analyze output (do not alter detection)
+- ✅ Extended `InventoryResult` to include:
   - `narrativeValidation?: NarrativeValidationReport`
 
-**Files to Modify**:
-- `packages/core/src/workflows/merge/mergeWorkflow.ts`
-- `packages/core/src/workflows/types.ts` (add `narrativeValidation` to `InventoryResult`)
+**Files Modified**:
+- ✅ `packages/core/src/workflows/merge/mergeWorkflow.ts`
+- ✅ `packages/core/src/workflows/types.ts` (added `narrativeValidation` to `InventoryResult`)
 
-**CLI**: Dry-run JSON should include narrative validation report.
+**CLI**: Dry-run JSON includes narrative validation report.
 
 #### Commit A6 — Narrative-Derived Suggested Corrections (Optional)
 
-**Status**: ❌ **Not Started**
+**Status**: ✅ **Complete**
 
 **Goal**: Provide suggestions in the same correction model style.
 
 **Implementation**:
-- If narrative says sheet `A1.2` replaced, but inventory has `A1.3` replaced:
-  - Suggest: "Did you mean A1.2? Or is A1.3 actually A1.2?"
-- If narrative references `A101` but inventory has `A-101`:
-  - Suggest normalization correction mapping
+- ✅ If narrative says sheet `A1.2` replaced, but inventory has `A1.3` replaced:
+  - Suggests: "Did you mean A1.2? Or is A1.3 actually A1.2?"
+- ✅ If narrative references `A101` but inventory has `A-101`:
+  - Suggests normalization correction mapping
 
 **Output**: `suggestedCorrections` in `NarrativeValidationReport` (separate from user-provided corrections).
 
-**Files to Modify**:
-- `packages/core/src/narrative/validate.ts` (add suggestion logic)
+**Files Modified**:
+- ✅ `packages/core/src/narrative/validate.ts` (suggestion logic implemented)
 
 #### Commit A7 — CLI: Narrative Options
 
@@ -585,8 +650,9 @@ interface AssembleExecuteInput {
 | Feature | Core Engine | CLI | GUI | Status |
 |---------|-------------|-----|-----|--------|
 | **Update Documents (Merge)** | ✅ | ✅ | ✅ | Complete |
-| **Narrative Extraction** | ✅ | ✅ | ⚠️ | Phase 1 done |
-| **Narrative Validation** | ❌ | ❌ | ❌ | Not started |
+| **Standards (UCS/CSI)** | ✅ | ✅ | ✅ | Complete |
+| **Narrative Extraction** | ✅ | ✅ | ⚠️ | Complete (GUI integration pending) |
+| **Narrative Validation** | ✅ | ✅ | ⚠️ | Complete (GUI integration pending) |
 | **Fix Bookmarks** | ❌ | ❌ | ⚠️ | Not started |
 | **Extract Documents (Split)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
 | **Build Package (Assemble)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
@@ -600,26 +666,21 @@ interface AssembleExecuteInput {
 
 ## Next Steps (Recommended Order)
 
-1. **Narrative Validation** (Priority 1, Commits A4-A5)
-   - Highest value-add for construction pros
-   - CLI dry-run becomes discrepancy detector
-   - No GUI work required initially
-
-2. **Fix Bookmarks** (Priority 2, Commits C1-C4)
+1. **Fix Bookmarks** (Priority 1, Commits C1-C4)
    - Utilities already exist
    - Straightforward workflow implementation
    - High user value
 
-3. **Extract Documents** (Priority 3, Commits D1-D4)
+2. **Extract Documents** (Priority 2, Commits D1-D4)
    - Reuse detection logic from merge
    - Domain-correct slicing
 
-4. **Build Package** (Priority 4, Commits E1-E4)
+3. **Build Package** (Priority 3, Commits E1-E4)
    - Completes the split/assemble cycle
    - Lower priority than others
 
-5. **GUI Integration** (After core workflows)
-   - Narrative validation UI
+4. **GUI Integration** (After core workflows)
+   - Narrative validation UI (validation complete, UI display pending)
    - Split/Assemble/Bookmark wizards
 
 ---

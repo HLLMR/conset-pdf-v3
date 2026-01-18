@@ -14,6 +14,7 @@ packages/core/src/
 ├── locators/         # Detection strategies (pluggable)
 ├── parser/           # ID parsing/normalization (pure)
 ├── layout/           # Layout profile system
+├── standards/        # UCS/CSI standards (discipline & MasterFormat)
 ├── narrative/        # Narrative PDF processing (advisory analysis)
 │   ├── text-extract.ts     # Extract text from narrative PDFs
 │   ├── parse-algorithmic.ts # Parse narrative into instruction sets
@@ -110,9 +111,41 @@ packages/core/src/
 - **`types.ts`**: Layout profile schema, ROI types
 - **`load.ts`**: Load profiles from JSON or create inline
 
+### Standards (`standards/`)
+
+**Purpose**: UCS/CSI standards for drawings discipline identification and specs MasterFormat classification
+
+- **`normalizeDrawingsDiscipline.ts`**: UDS-style discipline normalization
+  - Identifies discipline designators (G, C, L, A, I, S, M, P, E, F, T)
+  - Handles multi-letter aliases (FP, DDC, ATC, SEC, AV, IT, etc.)
+  - Heuristic-based disambiguation (Controls vs Civil)
+  - Returns `DrawingsDisciplineMeta` with canonical codes, order, confidence
+
+- **`normalizeSpecsMasterformat.ts`**: CSI MasterFormat normalization
+  - Extracts section IDs in format "DD SS SS" (e.g., "23 09 00")
+  - Identifies divisions (00-49) with titles from dataset
+  - Returns `SpecsMasterformatMeta` with division, order, confidence
+
+- **`compare.ts`**: Row comparators for standards-based sorting
+  - `compareDrawingsRows()`: Sorts by discipline order, then normalizedId
+  - `compareSpecsRows()`: Sorts by division order, then section tuple
+
+- **`datasets/`**: Standards datasets
+  - `drawingsDesignators.ts`: UDS designators and aliases
+  - `drawingsOrderHeuristic.ts`: Discipline ordering table
+  - `masterformatDivisions.ts`: CSI MasterFormat 2018 divisions (00-49)
+
+- **`types.ts`**: Standards types and interfaces
+  - `DrawingsDisciplineMeta`: Complete discipline metadata
+  - `SpecsMasterformatMeta`: Complete MasterFormat metadata
+
+**Integration**: Applied in `workflows/mappers/merge.ts` during inventory mapping. Adds optional `discipline` field to drawings rows and optional `specs` field to specs rows. Non-breaking (optional fields only).
+
+**Rule**: Standards module is pure (no IO, no side effects). All functions are deterministic.
+
 ### Narrative (`narrative/`)
 
-**Purpose**: Extract and parse instructions from narrative PDFs (advisory analysis)
+**Purpose**: Extract, parse, and validate instructions from narrative PDFs (advisory analysis)
 
 - **`text-extract.ts`**: Extract page-aware text from narrative PDFs using `DocumentContext`
   - Uses `DocumentContext` to comply with architecture constraints
@@ -128,12 +161,21 @@ packages/core/src/
   - `normalizeSheetId()`: Normalize drawing sheet IDs from narrative
   - `normalizeSpecSectionId()`: Normalize spec section IDs from narrative
 
+- **`validate.ts`**: Deterministic validation of narrative instructions against inventory
+  - Compares narrative claims against detected inventory
+  - Identifies discrepancies (missing sheets, typos, ambiguous matches)
+  - Uses Levenshtein similarity for near-match detection
+  - Generates `NarrativeIssue[]` with issue codes and suggested corrections
+  - Never modifies inventory or corrections (advisory only)
+
 - **`types.ts`**: Narrative types and interfaces
   - `NarrativeTextDocument`: Extracted text with page awareness
   - `NarrativeInstructionSet`: Parsed instructions (drawings, specs, issues)
+  - `NarrativeValidationReport`: Validation results with issues and suggestions
+  - `NarrativeIssue`: Individual validation issue with codes and metadata
   - `DrawingInstruction`, `SpecInstruction`: Individual instruction types
 
-**Status**: Advisory only - narrative instructions are extracted and parsed but conflict resolution not yet implemented. Used in merge workflow `analyze()` phase to provide advisory information in `InventoryResult.narrative`.
+**Status**: ✅ Complete - narrative instructions are extracted, parsed, and validated against inventory. Validation report included in `InventoryResult.narrativeValidation` during merge workflow `analyze()` phase. All validation is advisory only and does not modify detection results.
 
 **Rule**: Narrative processing uses `DocumentContext` for PDF operations (complies with single-load pipeline).
 

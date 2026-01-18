@@ -8,6 +8,15 @@ Core library and CLI for building "latest-and-greatest" construction document se
 - Merge workflow (Update Documents) - Complete workflow engine implementation
   - **Drawings**: ROI-based detection with layout profiles (or legacy fallback)
   - **Specs**: Text-based section ID detection
+- **Standards Module (UCS/CSI)** - Complete implementation
+  - **Drawings**: UDS-style discipline identification and sorting
+  - **Specs**: CSI MasterFormat classification and sorting
+  - Integrated into merge workflow inventory mapping
+- **Narrative PDF Processing** - Complete implementation
+  - Text extraction and algorithmic parsing
+  - **Deterministic validation** against inventory
+  - Issue detection with near-match suggestions
+  - Suggested corrections (advisory only)
 - CLI commands for all operations
 - ROI-based sheet detection with layout profiles (drawings)
 - Legacy detection fallback (drawings)
@@ -15,7 +24,6 @@ Core library and CLI for building "latest-and-greatest" construction document se
 
 **⚠️ Partially Implemented:**
 - Split/Assemble/Bookmark workflows - CLI commands exist, workflow engine not yet implemented
-- Narrative PDF processing - Extraction and parsing available, conflict resolution not implemented
 
 **📚 Documentation:**
 - Complete API documentation
@@ -53,7 +61,14 @@ Both CLI and GUI applications route through the same workflow engine for consist
 
 **Narrative Processing**:
 - `extractNarrativeTextFromPdf()` - Extract text from narrative PDFs
-- `parseNarrativeAlgorithmic()` - Parse narrative instructions (advisory only)
+- `parseNarrativeAlgorithmic()` - Parse narrative instructions
+- `validateNarrativeAgainstInventory()` - Validate narrative against inventory (advisory only)
+
+**Standards (UCS/CSI)**:
+- `normalizeDrawingsDiscipline()` - UDS-style discipline identification
+- `normalizeSpecsMasterformat()` - CSI MasterFormat classification
+- `compareDrawingsRows()` - Discipline-based sorting comparator
+- `compareSpecsRows()` - MasterFormat-based sorting comparator
 
 **Workflow Engine**:
 - `createMergeWorkflowRunner()` - Merge workflow with analyze/execute pattern
@@ -234,6 +249,7 @@ conset-pdf/
 - **[Public API](docs/PUBLIC_API.md)** - Stable API contracts
 - **[CLI](docs/CLI.md)** - All CLI commands, arguments, options, examples
 - **[Workflows](docs/WORKFLOWS.md)** - Workflow details, inputs, outputs, implementation status
+- **[Standards](docs/STANDARDS.md)** - UCS/CSI standards module (discipline & MasterFormat)
 - **[Quick Start](docs/QUICK_START.md)** - Happy-path usage
 
 ## Quick Onboarding for New Developers

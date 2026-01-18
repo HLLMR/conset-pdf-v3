@@ -31,6 +31,7 @@ import type { SheetLocator } from '../../locators/sheetLocator.js';
 import {
   extractNarrativeTextFromPdf,
   parseNarrativeAlgorithmic,
+  validateNarrativeAgainstInventory,
   type NarrativeInstructionSet,
 } from '../../narrative/index.js';
 import { fileExists } from '../../utils/fs.js';
@@ -120,6 +121,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
 
     // Process narrative if provided (advisory only, read-only)
     let narrative: NarrativeInstructionSet | undefined;
+    let narrativeValidation;
     if (narrativePdfPath) {
       try {
         // Verify narrative file exists
@@ -130,6 +132,32 @@ export const mergeWorkflowImpl: WorkflowImpl<
           
           if (verbose) {
             console.log(`[Narrative] Extracted ${narrative.drawings.length} drawing instructions and ${narrative.specs.length} spec instructions`);
+          }
+
+          // Validate narrative against inventory
+          // Build inventory result for validation (temporary structure)
+          const inventoryForValidation: InventoryResult = {
+            workflowId: 'merge',
+            rows,
+            issues,
+            conflicts: [],
+            summary,
+            meta: {
+              docType,
+              originalPdfPath,
+              addendumPdfPaths,
+              mode,
+              strict,
+            },
+          };
+
+          narrativeValidation = validateNarrativeAgainstInventory(
+            narrative,
+            inventoryForValidation
+          );
+
+          if (verbose) {
+            console.log(`[Narrative] Validation found ${narrativeValidation.issues.length} issue(s)`);
           }
         } else if (verbose) {
           console.warn(`[Narrative] Narrative PDF not found: ${narrativePdfPath}`);
@@ -157,6 +185,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
         strict,
       },
       narrative,
+      narrativeValidation,
     };
   },
 

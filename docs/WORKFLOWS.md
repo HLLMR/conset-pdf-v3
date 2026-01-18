@@ -22,10 +22,16 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 - **Drawings** (`docType: 'drawings'`): Uses ROI-based detection (with layout profiles) or legacy title block detection
   - Supports layout profiles for ROI-based detection
   - Falls back to legacy title block detection if no profile provided
+  - **Standards**: UDS-style discipline identification and sorting
+    - Optional `discipline` field added to inventory rows
+    - Discipline-based sorting with `compareDrawingsRows()`
 - **Specs** (`docType: 'specs'`): Uses text-based section ID detection (`SpecsSectionLocator`)
   - Detects section IDs (e.g., "23 02 00", "00 31 21") from page text
   - Does not support layout profiles (uses text-based detection only)
   - Same merge logic as drawings (replace/insert/append modes work identically)
+  - **Standards**: CSI MasterFormat classification and sorting
+    - Optional `specs` field added to inventory rows
+    - MasterFormat-based sorting with `compareSpecsRows()`
 
 ### Inputs
 
@@ -87,7 +93,7 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
   - `ROI_DETECTION_FAILURE`: ROI-based detection failed
   - `LEGACY_FALLBACK`: Fell back to legacy detection
 
-- **Conflicts**: Currently empty (narrative vs detection conflicts not implemented)
+- **Conflicts**: Currently empty (reserved for future conflict types)
 
 - **Summary**: Statistics
   - `totalRows`: Total pages analyzed
@@ -108,6 +114,14 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
   - `strict`: Strict mode flag
 
 - **Narrative**: Optional narrative instruction set (advisory only, read-only)
+  - Extracted and parsed from narrative PDF if provided
+  - Contains drawing and spec instructions from narrative
+
+- **Narrative Validation**: Optional narrative validation report (advisory only, read-only)
+  - Validates narrative instructions against detected inventory
+  - Contains issues with codes: `NARR_SHEET_NOT_FOUND`, `NARR_NEAR_MATCH`, `NARR_AMBIGUOUS_MATCH`, `NARR_INVENTORY_NOT_MENTIONED`
+  - Includes near-match suggestions and suggested corrections
+  - Never modifies inventory or detection results
 
 ### Corrections Supported
 

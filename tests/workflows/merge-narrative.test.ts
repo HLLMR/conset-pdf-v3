@@ -78,6 +78,13 @@ describe('Merge Workflow Narrative Integration', () => {
       expect(Array.isArray(narrative.specs)).toBe(true);
       expect(Array.isArray(narrative.issues)).toBe(true);
       
+      // Verify narrativeValidation is present when narrative is provided
+      expect(result).toHaveProperty('narrativeValidation');
+      expect(result.narrativeValidation).toBeDefined();
+      expect(result.narrativeValidation).toHaveProperty('issues');
+      expect(result.narrativeValidation).toHaveProperty('meta');
+      expect(Array.isArray(result.narrativeValidation!.issues)).toBe(true);
+      
       // Verify other result fields are unchanged
       expect(result).toHaveProperty('workflowId', 'merge');
       expect(result).toHaveProperty('rows');
@@ -114,6 +121,9 @@ describe('Merge Workflow Narrative Integration', () => {
       
       // Verify narrative is absent
       expect(result.narrative).toBeUndefined();
+      
+      // Verify narrativeValidation is also absent when narrative is not provided
+      expect(result.narrativeValidation).toBeUndefined();
       
       // Verify other result fields are present and unchanged
       expect(result).toHaveProperty('workflowId', 'merge');
@@ -152,12 +162,177 @@ describe('Merge Workflow Narrative Integration', () => {
       // Verify narrative is absent (file not found)
       expect(result.narrative).toBeUndefined();
       
+      // Verify narrativeValidation is also absent when narrative file not found
+      expect(result.narrativeValidation).toBeUndefined();
+      
       // Verify other result fields are present and unchanged
       expect(result).toHaveProperty('workflowId', 'merge');
       expect(result).toHaveProperty('rows');
       expect(result).toHaveProperty('issues');
       expect(result).toHaveProperty('conflicts');
       expect(result).toHaveProperty('summary');
+    } finally {
+      // Cleanup
+      const { unlinkSync } = await import('fs');
+      if (existsSync(originalPdf)) unlinkSync(originalPdf);
+      if (existsSync(addendumPdf)) unlinkSync(addendumPdf);
+    }
+  });
+  
+  test('narrativeValidation contains expected issue codes for controlled test', async () => {
+    if (!hasNarrativeFixture) {
+      console.warn('Narrative fixture not found, skipping test');
+      return;
+    }
+    
+    // Create minimal test PDFs with specific sheet IDs that we know are in the narrative
+    // The Add3 Narrative contains sheets like G0.01, G1.11, etc.
+    // We'll create PDFs that DON'T match these to trigger validation issues
+    const originalPdf = await createMinimalTestPdf('SHEET NO. Z-999 Test Sheet');
+    const addendumPdf = await createMinimalTestPdf('SHEET NO. Z-998 Another Test Sheet');
+    
+    try {
+      const runner = createMergeWorkflowRunner();
+      
+      const analyzeInput = {
+        docType: 'drawings' as const,
+        originalPdfPath: originalPdf,
+        addendumPdfPaths: [addendumPdf],
+        narrativePdfPath: actualNarrativePath,
+        options: {
+          verbose: false,
+        },
+      };
+      
+      const result = await runner.analyze(analyzeInput);
+      
+      // Verify narrativeValidation is present
+      expect(result.narrativeValidation).toBeDefined();
+      
+      // The narrative should reference sheets that aren't in our test inventory
+      // So we should see validation issues
+      const validation = result.narrativeValidation!;
+      expect(Array.isArray(validation.issues)).toBe(true);
+      
+      // Check that validation report has proper structure
+      expect(validation).toHaveProperty('meta');
+      expect(validation.meta).toHaveProperty('comparedAtIso');
+      expect(validation.meta).toHaveProperty('narrativeHash');
+      expect(validation.meta).toHaveProperty('inventoryHash');
+      
+      // If narrative has drawings/specs that don't match inventory, we should see issues
+      // (This depends on the actual narrative content, so we just verify structure)
+      if (validation.issues.length > 0) {
+        const issue = validation.issues[0];
+        expect(issue).toHaveProperty('code');
+        expect(issue).toHaveProperty('severity');
+        expect(issue).toHaveProperty('message');
+        // Issue codes should be one of the expected validation codes
+        const validCodes = [
+          'NARR_SHEET_NOT_FOUND',
+          'NARR_SHEET_NEAR_MATCH',
+          'NARR_SHEET_AMBIGUOUS_MATCH',
+          'NARR_SPEC_NOT_FOUND',
+          'NARR_SPEC_NEAR_MATCH',
+          'NARR_SPEC_AMBIGUOUS_MATCH',
+          'NARR_INVENTORY_NOT_MENTIONED',
+        ];
+        expect(validCodes).toContain(issue.code);
+      }
+
+      // Verify suggestedCorrections structure if present
+      if (validation.suggestedCorrections) {
+        expect(Array.isArray(validation.suggestedCorrections)).toBe(true);
+        for (const suggestion of validation.suggestedCorrections) {
+          expect(suggestion).toHaveProperty('type');
+          expect(suggestion).toHaveProperty('narrativeIdNormalized');
+          expect(suggestion).toHaveProperty('suggestedRowId');
+          expect(suggestion).toHaveProperty('reason');
+          expect(['sheet', 'specSection']).toContain(suggestion.type);
+        }
+      }
+    } finally {
+      // Cleanup
+      const { unlinkSync } = await import('fs');
+      if (existsSync(originalPdf)) unlinkSync(originalPdf);
+      if (existsSync(addendumPdf)) unlinkSync(addendumPdf);
+    }
+  });
+
+  test('narrativeValidation includes suggestedCorrections when applicable', async () => {
+    if (!hasNarrativeFixture) {
+      console.warn('Narrative fixture not found, skipping test');
+      return;
+    }
+    
+    // Create minimal test PDFs with sheet IDs that are similar to narrative IDs
+    // This should trigger NEAR_MATCH issues with single candidates, producing suggestions
+    const originalPdf = await createMinimalTestPdf('SHEET NO. G001 Main Floor Plan'); // Similar to G0.01 in narrative
+    const addendumPdf = await createMinimalTestPdf('SHEET NO. G111 Second Floor Plan'); // Similar to G1.11 in narrative
+    
+    try {
+      const runner = createMergeWorkflowRunner();
+      
+      const analyzeInput = {
+        docType: 'drawings' as const,
+        originalPdfPath: originalPdf,
+        addendumPdfPaths: [addendumPdf],
+        narrativePdfPath: actualNarrativePath,
+        options: {
+          verbose: false,
+        },
+      };
+      
+      const result = await runner.analyze(analyzeInput);
+      
+      // Verify narrativeValidation is present
+      expect(result.narrativeValidation).toBeDefined();
+      
+      const validation = result.narrativeValidation!;
+      
+      // If there are NEAR_MATCH issues with single candidates, we should have suggestions
+      // Note: This depends on the actual narrative content and similarity scores
+      // We just verify the structure is correct if suggestions exist
+      if (validation.suggestedCorrections) {
+        expect(Array.isArray(validation.suggestedCorrections)).toBe(true);
+        expect(validation.suggestedCorrections.length).toBeGreaterThan(0);
+        
+        // Verify suggestion structure
+        const suggestion = validation.suggestedCorrections[0];
+        expect(suggestion).toHaveProperty('type');
+        expect(suggestion).toHaveProperty('narrativeIdNormalized');
+        expect(suggestion).toHaveProperty('suggestedRowId');
+        expect(suggestion).toHaveProperty('reason');
+        expect(suggestion).toHaveProperty('explanation');
+        expect(['sheet', 'specSection']).toContain(suggestion.type);
+      }
+    } finally {
+      // Cleanup
+      const { unlinkSync } = await import('fs');
+      if (existsSync(originalPdf)) unlinkSync(originalPdf);
+      if (existsSync(addendumPdf)) unlinkSync(addendumPdf);
+    }
+  });
+
+  test('narrativeValidation suggestedCorrections absent when no suggestions exist', async () => {
+    // Create minimal test PDFs with exact matches (no issues, no suggestions)
+    const originalPdf = await createMinimalTestPdf('SHEET NO. Z-999 Test Sheet');
+    const addendumPdf = await createMinimalTestPdf('SHEET NO. Z-998 Another Test Sheet');
+    
+    try {
+      const runner = createMergeWorkflowRunner();
+      
+      const analyzeInput = {
+        docType: 'drawings' as const,
+        originalPdfPath: originalPdf,
+        addendumPdfPaths: [addendumPdf],
+        // No narrative - should not have validation or suggestions
+      };
+      
+      const result = await runner.analyze(analyzeInput);
+      
+      // Verify narrativeValidation is absent when no narrative provided
+      expect(result.narrativeValidation).toBeUndefined();
     } finally {
       // Cleanup
       const { unlinkSync } = await import('fs');

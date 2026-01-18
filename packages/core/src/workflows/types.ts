@@ -5,7 +5,10 @@
  * They provide a consistent structure for inventory analysis, issues, conflicts, and execution results.
  */
 
-import type { NarrativeInstructionSet } from '../narrative/index.js';
+import type {
+  NarrativeInstructionSet,
+  NarrativeValidationReport,
+} from '../narrative/index.js';
 
 /**
  * Workflow identifier
@@ -126,6 +129,8 @@ export interface InventoryResult {
   meta?: Record<string, unknown>;
   /** Optional narrative instruction set (advisory only, read-only) */
   narrative?: NarrativeInstructionSet;
+  /** Optional narrative validation report (advisory only, read-only) */
+  narrativeValidation?: NarrativeValidationReport;
 }
 
 /**

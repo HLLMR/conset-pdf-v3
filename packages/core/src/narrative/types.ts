@@ -111,3 +111,77 @@ export interface NarrativeParseIssue {
     rawText: string;
   };
 }
+
+/**
+ * Validation issue detected when comparing narrative instructions against inventory
+ */
+export interface NarrativeIssue {
+  /** Severity level */
+  severity: "info" | "warn" | "error";
+  /** Stable issue code (e.g., "NARR_SHEET_NOT_FOUND", "NARR_SPEC_NEAR_MATCH") */
+  code: string;
+  /** Human-readable message */
+  message: string;
+  /** Optional reference to the narrative instruction that caused this issue */
+  ref?: {
+    /** Type of instruction */
+    type: "sheet" | "specSection";
+    /** Raw ID as found in narrative */
+    idRaw: string;
+    /** Normalized ID */
+    idNormalized: string;
+  };
+  /** Inventory row IDs that are relevant to this issue (stable row.id values) */
+  inventoryRowIds?: string[];
+  /** Near matches found (for near-match issues) */
+  nearMatches?: Array<{
+    /** Stable row.id value */
+    rowId: string;
+    /** Normalized ID of the candidate match */
+    normalizedId: string;
+    /** Title if available */
+    title?: string;
+    /** Similarity score (0..1) */
+    score: number;
+    /** Reason for the match (e.g., "id_similarity") */
+    reason: string;
+  }>;
+}
+
+/**
+ * Correction patch suggestion
+ * 
+ * Represents a deterministic suggestion to map a narrative instruction
+ * to an inventory row, typically generated from NEAR_MATCH validation issues.
+ */
+export interface CorrectionPatch {
+  /** Type of correction */
+  type: "sheet" | "specSection";
+  /** Target normalized ID from narrative (what the narrative says) */
+  narrativeIdNormalized: string;
+  /** Suggested inventory row ID to match (stable row.id value) */
+  suggestedRowId: string;
+  /** Human-readable reason for suggestion (e.g., "id similarity 0.92") */
+  reason: string;
+  /** Optional explanation with details */
+  explanation?: string;
+}
+
+/**
+ * Validation report comparing narrative instructions against inventory
+ */
+export interface NarrativeValidationReport {
+  /** Issues detected during validation */
+  issues: NarrativeIssue[];
+  /** Optional suggested corrections (not implemented in Phase 2) */
+  suggestedCorrections?: CorrectionPatch[];
+  /** Metadata about the validation */
+  meta: {
+    /** ISO 8601 timestamp when validation was performed */
+    comparedAtIso: string;
+    /** Hash of the narrative instruction set (for change detection) */
+    narrativeHash: string;
+    /** Optional hash of the inventory (for change detection) */
+    inventoryHash?: string;
+  };
+}
