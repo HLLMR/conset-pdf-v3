@@ -1,5 +1,7 @@
 # Testing Plan
 
+**Last verified**: 2026-01-17
+
 ## Overview
 
 This document describes how we verify correctness and maintain architecture invariants in `conset-pdf`.

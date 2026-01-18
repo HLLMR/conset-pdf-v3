@@ -1,5 +1,7 @@
 # Output Structure
 
+**Last verified**: 2026-01-17
+
 This document describes the exact output files and folders produced by `conset-pdf` commands.
 
 ## Recommended Structure

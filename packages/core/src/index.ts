@@ -106,3 +106,13 @@ export type { SheetLocator } from './locators/sheetLocator.js';
 // Export analyze
 export { DocumentContext } from './analyze/documentContext.js';
 export type * from './analyze/pageContext.js';
+
+// Export workflows (additive - new workflow engine)
+export type * from './workflows/index.js';
+export {
+  createWorkflowRunner,
+  createMergeWorkflowRunner,
+} from './workflows/index.js';
+
+// Export narrative processing
+export * from './narrative/index.js';

@@ -480,6 +480,9 @@ function buildIdMap(pageIds: PageId[], verbose: boolean = false, sourceName: str
 
 /**
  * Plan the merge operation
+ * 
+ * @param includeInventory - If true, returns both plan and combined inventory from all PDFs
+ * @returns MergePlan (and optionally inventory when includeInventory=true)
  */
 export async function planMerge(
   originalPath: string,
@@ -490,8 +493,12 @@ export async function planMerge(
   locator: SheetLocator | null,
   verbose: boolean = false,
   writeInventory: boolean = false,
-  inventoryOutputDir?: string
-): Promise<MergePlan & { originalDocContext?: DocumentContext }> {
+  inventoryOutputDir?: string,
+  includeInventory: boolean = false
+): Promise<
+  | (MergePlan & { originalDocContext?: DocumentContext })
+  | (MergePlan & { originalDocContext?: DocumentContext; inventory: ParseResult['inventory'] })
+> {
   const parseStart = Date.now();
 
   // Parse original PDF
@@ -575,6 +582,11 @@ export async function planMerge(
   const inserted: MergePlan['inserted'] = [];
   const unmatched: MergePlan['unmatched'] = [];
 
+  // Collect inventory if requested
+  const combinedInventory: ParseResult['inventory'] = includeInventory
+    ? [...(originalResult.inventory || [])]
+    : undefined;
+
   // Process each addendum in order
   for (const addendumPath of addendumPaths) {
     if (verbose) {
@@ -587,6 +599,11 @@ export async function planMerge(
     const addendumIdMap = buildIdMap(addendumPageIds, verbose, `addendum: ${addendumPath}`);
     const addendumDocContext = addendumResult.docContext;
     const addendumTotalPages = addendumDocContext ? addendumDocContext.pageCount : addendumPageIds.length;
+    
+    // Collect inventory if requested
+    if (includeInventory && addendumResult.inventory) {
+      combinedInventory!.push(...addendumResult.inventory);
+    }
     
     // Create a map of pageIndex -> title from inventory
     const addendumPageTitleMap = addendumResult.pageTitleMap || new Map<number, string>();
@@ -753,7 +770,7 @@ export async function planMerge(
     console.log(`\n⏱️  Parse time: ${parseTime}ms (${(parseTime / 1000).toFixed(2)}s)`);
   }
 
-  const result: MergePlan & { originalDocContext?: DocumentContext } = {
+  const result: MergePlan & { originalDocContext?: DocumentContext; inventory?: ParseResult['inventory'] } = {
     pages: workingSet.map((wp) => ({
       source: wp.source,
       sourceIndex: wp.sourceIndex,
@@ -771,6 +788,11 @@ export async function planMerge(
   // Attach DocumentContext for use in report generation (avoids re-loading PDF)
   if (originalDocContext) {
     (result as any).originalDocContext = originalDocContext;
+  }
+  
+  // Attach inventory if requested
+  if (includeInventory) {
+    result.inventory = combinedInventory;
   }
   
   return result;

@@ -1,6 +1,33 @@
 # conset-pdf
 
-Core library and CLI for building "latest-and-greatest" construction document sets. Provides APIs for merging addenda, splitting sets, detecting sheet IDs, and assembling documents.
+Core library and CLI for building "latest-and-greatest" construction document sets. A construction-focused PDF workflow tool that provides APIs for merging addenda, splitting sets, detecting sheet IDs, and assembling documents.
+
+## Current Status (2026-01-17)
+
+**✅ Fully Implemented:**
+- Merge workflow (Update Documents) - Complete workflow engine implementation
+- CLI commands for all operations
+- ROI-based sheet detection with layout profiles
+- Legacy detection fallback
+- Inventory analysis with corrections support
+
+**⚠️ Partially Implemented:**
+- Split/Assemble/Bookmark workflows - CLI commands exist, workflow engine not yet implemented
+- Narrative PDF processing - Extraction and parsing available, conflict resolution not implemented
+
+**📚 Documentation:**
+- Complete API documentation
+- Comprehensive CLI usage guide
+- Workflow engine architecture documented
+- Extension guide for adding new workflows
+
+## Repo Scope
+
+This repository contains:
+- **Core library** (`@conset-pdf/core`): Publishable npm package with PDF processing APIs
+- **CLI tool** (`@conset-pdf/cli`): Command-line interface for all workflows
+
+Both CLI and GUI applications route through the same workflow engine for consistency.
 
 ## What Core Provides
 
@@ -20,6 +47,13 @@ Core library and CLI for building "latest-and-greatest" construction document se
 **Layout System**:
 - Layout profiles with ROI definitions
 - Profile loading and validation
+
+**Workflow Engine**:
+- `createMergeWorkflowRunner()` - Merge workflow with analyze/execute pattern
+- `createWorkflowRunner()` - Generic workflow runner factory
+- `InventoryResult` - Standardized inventory analysis result
+- `CorrectionOverlay` - User corrections (ignore rows, override IDs)
+- Workflow types: `merge`, `split`, `assemble`, `bookmark` (only `merge` is currently implemented)
 
 ## Install
 
@@ -44,11 +78,11 @@ npm run test:smoke     # Smoke tests
 npm run verify:invariants  # Architecture invariants
 ```
 
-## Examples
+## Quick-Start Examples
 
 ### CLI Usage
 
-**Merge addenda**:
+**Merge addenda** (most common):
 ```bash
 conset-pdf merge-addenda \
   --original Original.pdf \
@@ -58,7 +92,17 @@ conset-pdf merge-addenda \
   --layout layout.json
 ```
 
-**Detect sheet IDs**:
+**Dry-run inventory analysis** (preview before merging):
+```bash
+conset-pdf merge-addenda \
+  --original Original.pdf \
+  --addenda Addendum1.pdf \
+  --type drawings \
+  --dry-run \
+  --json-output inventory.json
+```
+
+**Detect sheet IDs** (test layout profile):
 ```bash
 conset-pdf detect \
   --input Set.pdf \
@@ -72,6 +116,14 @@ conset-pdf detect \
 conset-pdf split-set \
   --input Set.pdf \
   --output-dir ./output \
+  --type drawings
+```
+
+**Assemble set**:
+```bash
+conset-pdf assemble-set \
+  --input-dir ./subsets \
+  --output Final.pdf \
   --type drawings
 ```
 
@@ -101,6 +153,44 @@ const report = await mergeAddenda({
 console.log(`Merged ${report.stats.finalPagesPlanned} pages`);
 ```
 
+## High-Level Architecture
+
+### Workflow Engine Pattern
+
+All workflows follow the **analyze → applyCorrections → execute** pattern:
+
+1. **Analyze**: Dry-run inventory analysis (no file writes)
+   - Detects sheet IDs from all input PDFs
+   - Builds inventory of all pages with detected IDs
+   - Identifies issues (missing IDs, duplicates, conflicts)
+   - Returns `InventoryResult` for review
+
+2. **Apply Corrections**: User edits applied to inventory
+   - Ignore rows (visible but excluded from counts)
+   - Override IDs (update `normalizedId`, stable `row.id` unchanged)
+   - Returns corrected `InventoryResult`
+
+3. **Execute**: Produces output files
+   - Applies merge/split/assemble plan
+   - Writes output PDFs
+   - Returns `ExecuteResult` with file paths and statistics
+
+### Inventory Model
+
+- **Stable `row.id`**: Unique identifier per row (format: `${source}:${pageIndex}:${idPart}`)
+  - Never changes when corrections are applied
+  - Used as key for corrections overlay
+  
+- **`normalizedId`**: Detected/overridden sheet ID
+  - Updated when user overrides ID
+  - Used for matching and planning
+
+- **Corrections keyed by `row.id`**: 
+  - `ignoredRowIds`: Array of stable row IDs to ignore
+  - `overrides[rowId].fields.normalizedId`: Override detected ID
+
+- **Ignored rows**: Remain visible in inventory but excluded from summary counts
+
 ## Project Structure
 
 ```
@@ -113,6 +203,7 @@ conset-pdf/
 │   │       ├── locators/     # Detection strategies
 │   │       ├── parser/       # ID parsing/normalization
 │   │       ├── layout/       # Layout profile system
+│   │       ├── workflows/    # Workflow engine (analyze/execute pattern)
 │   │       └── utils/        # Utilities
 │   └── cli/           # CLI tool (@conset-pdf/cli)
 └── docs/              # Documentation
@@ -120,11 +211,36 @@ conset-pdf/
 
 **Monorepo Structure**: This is an npm workspaces monorepo. Root-level commands (`npm install`, `npm run build`, `npm test`) are the authoritative workflows. Individual package scripts exist but are not the primary entry point.
 
+## Workflows Implemented
+
+| Workflow | Status | Description |
+|----------|--------|-------------|
+| **Update Documents** (merge) | ✅ Implemented | Merge addenda into original set, replace updated sheets, insert new sheets |
+| Split Set | ⚠️ Placeholder | Split PDF into discipline-specific subsets (CLI command exists, workflow engine not implemented) |
+| Assemble Set | ⚠️ Placeholder | Reassemble subsets into final ordered set (CLI command exists, workflow engine not implemented) |
+| Fix Bookmarks | ⚠️ Placeholder | Regenerate bookmarks from detected sheet IDs (workflow engine not implemented) |
+
 ## Documentation
 
-- **[Architecture](docs/ARCHITECTURE.md)** - Module overview, invariants, data flow
+- **[Architecture](docs/ARCHITECTURE.md)** - Module overview, invariants, data flow, extension guide
 - **[Public API](docs/PUBLIC_API.md)** - Stable API contracts
+- **[CLI](docs/CLI.md)** - All CLI commands, arguments, options, examples
+- **[Workflows](docs/WORKFLOWS.md)** - Workflow details, inputs, outputs, implementation status
 - **[Quick Start](docs/QUICK_START.md)** - Happy-path usage
+
+## Quick Onboarding for New Developers
+
+1. **Start Here**: Read [QUICK_START.md](docs/QUICK_START.md) for a hands-on walkthrough
+2. **Understand Architecture**: Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for module structure and invariants
+3. **API Reference**: See [PUBLIC_API.md](docs/PUBLIC_API.md) for stable API contracts
+4. **CLI Usage**: See [CLI.md](docs/CLI.md) for all CLI commands and examples
+5. **Workflows**: See [WORKFLOWS.md](docs/WORKFLOWS.md) for workflow details and implementation status
+
+**Key Concepts:**
+- **Workflow Engine**: All operations follow analyze → applyCorrections → execute pattern
+- **Inventory Model**: Stable `row.id` for corrections, `normalizedId` for matching
+- **Single-Load Pipeline**: Only `DocumentContext` loads PDFs (architecture invariant)
+- **ROI-First Detection**: ROI-based detection with legacy fallback
 
 ## Related Projects
 

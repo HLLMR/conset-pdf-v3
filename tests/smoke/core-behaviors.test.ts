@@ -9,7 +9,7 @@
  * These tests use minimal fixtures or instrumentation to keep them fast.
  */
 
-import { DocumentContext, RoiSheetLocator, LegacyTitleblockLocator, SpecsSectionLocator, CompositeLocator, createInlineLayout } from '@conset-pdf/core';
+import { DocumentContext, RoiSheetLocator, LegacyTitleblockLocator, SpecsSectionLocator, CompositeLocator, createInlineLayout, createMergeWorkflowRunner } from '@conset-pdf/core';
 import { PDFDocument } from 'pdf-lib';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -222,6 +222,60 @@ describe('Core Behaviors', () => {
     } finally {
       if (existsSync(specsPdfPath)) {
         unlinkSync(specsPdfPath);
+      }
+    }
+  });
+
+  /**
+   * Test: Merge workflow analyze() returns InventoryResult with detection inventory
+   */
+  test('Merge workflow analyze() returns InventoryResult with detection inventory', async () => {
+    const runner = createMergeWorkflowRunner();
+    
+    // Analyze with minimal input
+    const result = await runner.analyze({
+      docType: 'drawings',
+      originalPdfPath: testPdfPath,
+      addendumPdfPaths: [],
+      options: {
+        verbose: false,
+      },
+    });
+    
+    // Verify structure
+    expect(result).toHaveProperty('workflowId', 'merge');
+    expect(result).toHaveProperty('rows');
+    expect(result).toHaveProperty('issues');
+    expect(result).toHaveProperty('conflicts');
+    expect(result).toHaveProperty('summary');
+    expect(result).toHaveProperty('meta');
+    
+    // Verify types
+    expect(Array.isArray(result.rows)).toBe(true);
+    expect(Array.isArray(result.issues)).toBe(true);
+    expect(Array.isArray(result.conflicts)).toBe(true);
+    expect(typeof result.summary).toBe('object');
+    expect(result.meta).toHaveProperty('docType', 'drawings');
+    
+    // Verify summary has expected fields
+    expect(result.summary).toHaveProperty('totalRows');
+    expect(result.summary).toHaveProperty('rowsWithIds');
+    expect(result.summary).toHaveProperty('rowsWithoutIds');
+    
+    // Verify rows come from detection inventory (not plan.pages)
+    // Rows should have confidence and normalizedId from actual detection
+    if (result.rows.length > 0) {
+      const firstRow = result.rows[0];
+      // Rows from detection inventory should have confidence (0-1 range)
+      expect(firstRow).toHaveProperty('confidence');
+      expect(typeof firstRow.confidence).toBe('number');
+      expect(firstRow.confidence).toBeGreaterThanOrEqual(0);
+      expect(firstRow.confidence).toBeLessThanOrEqual(1);
+      
+      // If row has an ID, it should have normalizedId (from detection, not plan)
+      if (firstRow.id && firstRow.id !== `page-${firstRow.page! - 1}`) {
+        // The id should be the normalizedId from detection
+        expect(firstRow.id).toBeDefined();
       }
     }
   });

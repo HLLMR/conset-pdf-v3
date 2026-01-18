@@ -38,6 +38,7 @@ async function getPdfJs() {
 export class DocumentContext {
   private _pdfPath: string;
   private _pdfBytes: Uint8Array | null = null;
+  private _pdfBuffer: Buffer | null = null; // Store original buffer for hashing
   // Note: _pdfjsDoc is typed as 'any' because PDF.js document instances don't have complete TypeScript definitions
   // The document API is accessed dynamically (getPage, getOutline, etc.)
   private _pdfjsDoc: any = null; // pdfjs document instance
@@ -80,6 +81,8 @@ export class DocumentContext {
     
     // Load PDF bytes once
     const buffer = await fs.readFile(this._pdfPath);
+    // Store both Buffer (for hashing) and Uint8Array (for pdfjs)
+    this._pdfBuffer = buffer;
     this._pdfBytes = new Uint8Array(buffer);
     
     // Create pdfjs document once
@@ -107,6 +110,19 @@ export class DocumentContext {
   
   get pdfPath(): string {
     return this._pdfPath;
+  }
+  
+  /**
+   * Get PDF bytes for hashing/metadata operations
+   * Returns the raw PDF bytes that were loaded during initialization
+   */
+  getPdfBytes(): Uint8Array {
+    if (!this._pdfBytes || !this._pdfBuffer) {
+      throw new Error('DocumentContext not initialized. Call initialize() first.');
+    }
+    // Return Uint8Array view of the buffer for consistency
+    // Use the stored buffer to ensure we have the actual bytes
+    return new Uint8Array(this._pdfBuffer);
   }
   
   /**

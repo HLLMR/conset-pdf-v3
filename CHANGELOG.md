@@ -38,9 +38,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Workflow engine pattern (analyze → applyCorrections → execute) for merge operations
+- `createMergeWorkflowRunner()` factory for consistent workflow execution
+- `InventoryResult` and `CorrectionOverlay` types for inventory management
+- Comprehensive CLI documentation (`docs/CLI.md`)
+- Comprehensive workflow documentation (`docs/WORKFLOWS.md`)
+- Narrative PDF support (advisory analysis, conflicts not yet implemented)
+
+### Changed
+- **CLI**: `merge-addenda` command now routes through workflow engine
+- **Architecture**: Merge operations use workflow engine pattern (CLI and GUI consistent)
+- **Documentation**: Complete documentation update pass (2026-01-17)
+
+### Technical
+- Workflow engine supports corrections (ignore rows, override IDs)
+- Inventory model with stable `row.id` and `normalizedId` separation
+- Corrections keyed by stable row IDs (not normalizedId)
+
 ### Planned
 - Enhanced error handling and reporting
 - Performance optimizations for large PDFs
 - Additional locator strategies
 - Improved bookmark support
 - Multi-page sheet detection
+- Split/Assemble/Bookmark workflow engine implementations
+- Narrative conflict resolution

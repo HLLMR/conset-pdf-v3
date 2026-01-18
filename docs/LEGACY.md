@@ -1,5 +1,7 @@
 # Legacy Code
 
+**Last verified**: 2026-01-17
+
 **WARNING: Do not extend this code. It exists only for backward compatibility and fallback scenarios.**
 
 ## What Legacy Code Exists

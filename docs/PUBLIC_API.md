@@ -1,5 +1,7 @@
 # Public API
 
+**Last verified**: 2026-01-17
+
 ## Stable API Guarantees
 
 **Stable** (backward compatible):
@@ -10,11 +12,14 @@
 - `PageContext` - Public methods
 - `SheetLocator` interface
 - Layout profile schema
+- Workflow engine types (`InventoryResult`, `CorrectionOverlay`, `ExecuteResult`, etc.)
+- `createMergeWorkflowRunner()` - Factory function
 
 **Experimental** (may change):
 - Internal planner/applyPlan functions
 - Report structure details (fields may be added)
 - Locator implementations (use interface, not concrete classes)
+- Workflow engine internals (use factory functions, not direct implementation access)
 
 ## MergeAddendaOptions
 
@@ -211,3 +216,93 @@ interface LayoutProfile {
 - Duplicate IDs
 - Unmatched pages
 - Legacy fallback usage
+
+## Workflow Engine API
+
+### createMergeWorkflowRunner()
+
+**Factory function** for merge workflow:
+
+```typescript
+import { createMergeWorkflowRunner } from '@conset-pdf/core';
+
+const runner = createMergeWorkflowRunner();
+
+// Analyze (dry-run inventory)
+const inventory = await runner.analyze({
+  docType: 'drawings',
+  originalPdfPath: 'original.pdf',
+  addendumPdfPaths: ['addendum.pdf'],
+  profile: layoutProfile,
+});
+
+// Apply corrections
+const corrected = await runner.applyCorrections(
+  analyzeInput,
+  inventory,
+  {
+    ignoredRowIds: ['row-id-1'],
+    overrides: {
+      'row-id-2': { fields: { normalizedId: 'A-101' } }
+    }
+  }
+);
+
+// Execute
+const result = await runner.execute({
+  docType: 'drawings',
+  originalPdfPath: 'original.pdf',
+  addendumPdfPaths: ['addendum.pdf'],
+  outputPdfPath: 'output.pdf',
+  profile: layoutProfile,
+});
+```
+
+### InventoryResult
+
+```typescript
+interface InventoryResult {
+  workflowId: 'merge';
+  laneId?: string;
+  rows: InventoryRowBase[];  // Stable row.id (UID), row.normalizedId (detected/overridden)
+  issues: Issue[];
+  conflicts: Conflict[];
+  summary: {
+    totalRows: number;
+    rowsOk: number;
+    rowsWarning: number;
+    rowsError: number;
+    rowsConflict: number;
+    rowsWithIds: number;
+    rowsWithoutIds: number;
+    issuesCount: number;
+    conflictsCount: number;
+    // Merge-specific:
+    replaced?: number;
+    inserted?: number;
+    unmatched?: number;
+  };
+  meta?: Record<string, unknown>;
+}
+```
+
+### CorrectionOverlay
+
+```typescript
+interface CorrectionOverlay {
+  ignoredRowIds: string[];  // Rows to ignore (visible but excluded from counts)
+  overrides: {
+    [rowId: string]: {
+      fields: {
+        normalizedId?: string;  // Override detected ID
+        sheetId?: string;       // Alternative override
+      };
+    };
+  };
+}
+```
+
+**Current limitations**:
+- Narrative parsing: Not implemented (narrative path stored only)
+- Action overrides: Not implemented (only ID overrides supported)
+- Multi-lane merge: Single doc-type only (`'drawings'` or `'specs'`, not `'both'` in core)

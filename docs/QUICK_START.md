@@ -1,5 +1,7 @@
 # Quick Start Guide
 
+**Last verified**: 2026-01-17
+
 This guide walks you through the canonical ROI-first workflow for using `conset-pdf`.
 
 ## Canonical Workflow
