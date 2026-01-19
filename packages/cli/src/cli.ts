@@ -7,6 +7,7 @@ import { assembleSetCommand } from './commands/assembleSet.js';
 import { detectCommand } from './commands/detect.js';
 import { specsPatchCommand } from './commands/specsPatch.js';
 import { fixBookmarksCommand } from './commands/fixBookmarks.js';
+import { specsInventoryCommand } from './commands/specsInventory.js';
 
 const program = new Command();
 
@@ -22,6 +23,7 @@ assembleSetCommand(program);
 detectCommand(program);
 specsPatchCommand(program);
 fixBookmarksCommand(program);
+specsInventoryCommand(program);
 
 // Parse arguments
 program.parse();

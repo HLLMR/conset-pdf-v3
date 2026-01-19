@@ -128,3 +128,11 @@ export type {
   BookmarkStyleOptions,
   ResolvedBookmarkStyleOptions,
 } from './bookmarks/profiles/types.js';
+
+// Export spec inventory (footer-first sectionization)
+export * from './specs/inventory/index.js';
+
+// Export text utilities
+export { detectPageRegions } from './text/pageRegions.js';
+export type { TextPage, DetectedPageRegions } from './text/pageRegions.js';
+export type { TextItemWithPosition } from './utils/pdf.js';
