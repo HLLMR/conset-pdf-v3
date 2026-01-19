@@ -1,6 +1,9 @@
 import * as fs from 'fs/promises';
 import { PageContext } from './pageContext.js';
 import type { TextItemWithPosition } from '../utils/pdf.js';
+import type { TranscriptExtractor } from '../transcript/interfaces.js';
+import type { LayoutTranscript } from '../transcript/types.js';
+import { createTranscriptExtractor } from '../transcript/factory.js';
 
 // Import pdfjs-dist
 // Note: pdfjsLib is typed as 'any' because pdfjs-dist/legacy doesn't provide TypeScript definitions
@@ -31,9 +34,10 @@ async function getPdfJs() {
  * 
  * Responsibilities:
  * - Load PDF once (single load per document)
- * - Cache bookmarks (extract once)
+ * - Extract transcript once (using TranscriptExtractor)
+ * - Cache bookmarks (extract once, still uses PDF.js temporarily)
  * - Create and cache PageContext instances
- * - Coordinate text extraction per page (once per page)
+ * - Coordinate text extraction per page (once per page, from transcript)
  */
 export class DocumentContext {
   private _pdfPath: string;
@@ -41,7 +45,10 @@ export class DocumentContext {
   private _pdfBuffer: Buffer | null = null; // Store original buffer for hashing
   // Note: _pdfjsDoc is typed as 'any' because PDF.js document instances don't have complete TypeScript definitions
   // The document API is accessed dynamically (getPage, getOutline, etc.)
-  private _pdfjsDoc: any = null; // pdfjs document instance
+  // TEMPORARY: Keep PDF.js document only for bookmarks until migrated
+  private _pdfjsDoc: any = null; // pdfjs document instance (for bookmarks only)
+  private _transcriptExtractor: TranscriptExtractor;
+  private _layoutTranscript: LayoutTranscript | null = null;
   private _pageCount: number = 0;
   private _bookmarks: Array<{ title: string; pageIndex: number }> | null = null;
   private _bookmarksExtracted: boolean = false;
@@ -52,8 +59,9 @@ export class DocumentContext {
   private static _loadCount = 0;
   private _loadId: number = 0;
   
-  constructor(pdfPath: string) {
+  constructor(pdfPath: string, transcriptExtractor?: TranscriptExtractor) {
     this._pdfPath = pdfPath;
+    this._transcriptExtractor = transcriptExtractor || createTranscriptExtractor();
   }
   
   /**
@@ -71,37 +79,43 @@ export class DocumentContext {
   }
   
   /**
-   * Initialize document: load PDF bytes and create pdfjs document (single load)
+   * Initialize document: extract transcript and load PDF bytes for bookmarks
    */
   async initialize(): Promise<void> {
-    if (this._pdfjsDoc) {
+    if (this._layoutTranscript) {
       // Already initialized
       return;
     }
     
-    // Load PDF bytes once
+    // Load PDF bytes once (for hashing and bookmarks)
     const buffer = await fs.readFile(this._pdfPath);
-    // Store both Buffer (for hashing) and Uint8Array (for pdfjs)
     this._pdfBuffer = buffer;
     this._pdfBytes = new Uint8Array(buffer);
     
-    // Create pdfjs document once
-    const pdfjs = await getPdfJs();
-    if (!pdfjs || !pdfjs.getDocument) {
-      throw new Error('pdfjs-dist not available');
+    // Extract transcript once (primary source for text extraction)
+    this._layoutTranscript = await this._transcriptExtractor.extractTranscript(this._pdfPath);
+    this._pageCount = this._layoutTranscript.metadata.totalPages;
+    
+    // TEMPORARY: Load PDF.js document for bookmarks only
+    // This will be removed once bookmarks are migrated to transcript-based extraction
+    try {
+      const pdfjs = await getPdfJs();
+      if (pdfjs && pdfjs.getDocument) {
+        const loadingTask = pdfjs.getDocument({ 
+          data: this._pdfBytes,
+          useSystemFonts: true,
+          verbosity: 0
+        });
+        this._pdfjsDoc = await loadingTask.promise;
+      }
+    } catch (error) {
+      // PDF.js not available - bookmarks will fail, but transcript extraction works
+      console.warn('PDF.js not available for bookmarks extraction');
     }
     
     // Instrumentation: increment load counter
     DocumentContext._loadCount++;
     this._loadId = DocumentContext._loadCount;
-    
-    const loadingTask = pdfjs.getDocument({ 
-      data: this._pdfBytes,
-      useSystemFonts: true,
-      verbosity: 0
-    });
-    this._pdfjsDoc = await loadingTask.promise;
-    this._pageCount = this._pdfjsDoc.numPages;
   }
   
   get pageCount(): number {
@@ -127,10 +141,12 @@ export class DocumentContext {
   
   /**
    * Get the cached pdfjs document (must call initialize() first)
+   * TEMPORARY: Only used for bookmarks extraction
    */
   private _getPdfjsDoc(): any {
     if (!this._pdfjsDoc) {
-      throw new Error('DocumentContext not initialized. Call initialize() first.');
+      // PDF.js not available - bookmarks will fail
+      throw new Error('PDF.js document not available for bookmarks extraction.');
     }
     return this._pdfjsDoc;
   }
@@ -144,30 +160,26 @@ export class DocumentContext {
     }
     
     // Ensure initialized
-    if (!this._pdfjsDoc) {
+    if (!this._layoutTranscript) {
       await this.initialize();
     }
     
-    const pdf = this._getPdfjsDoc();
+    const transcript = this._getTranscript();
     
-    if (pageIndex < 0 || pageIndex >= pdf.numPages) {
-      throw new Error(`Page index ${pageIndex} out of range (0-${pdf.numPages - 1})`);
+    if (pageIndex < 0 || pageIndex >= transcript.pages.length) {
+      throw new Error(`Page index ${pageIndex} out of range (0-${transcript.pages.length - 1})`);
     }
     
-    // Get page info from cached pdfjs document
-    const page = await pdf.getPage(pageIndex + 1);
-    const rotation = page.rotate || 0;
-    // Use viewport with actual page rotation to get visual dimensions
-    // Since we transform text items to visual coordinates, we only need rotated dimensions
-    const viewport = page.getViewport({ scale: 1.0, rotation: rotation });
+    // Get page info from cached transcript
+    const page = transcript.pages[pageIndex];
     
-    // Create page context with visual (rotated) dimensions
-    // Text items will be transformed to visual coordinates, so no need for unrotated dimensions
+    // Create page context with visual dimensions from transcript
+    // Transcript pages are already canonicalized (rotation normalized to 0)
     const context = new PageContext(
       pageIndex,
-      viewport.width,  // Visual (rotated) space
-      viewport.height, // Visual (rotated) space
-      rotation
+      page.width,   // Visual space (after canonicalization, rotation is 0)
+      page.height,  // Visual space
+      0             // Rotation is always 0 after canonicalization
     );
     
     this._pageContexts.set(pageIndex, context);
@@ -175,7 +187,18 @@ export class DocumentContext {
   }
   
   /**
+   * Get the cached transcript (must call initialize() first)
+   */
+  private _getTranscript(): LayoutTranscript {
+    if (!this._layoutTranscript) {
+      throw new Error('DocumentContext not initialized. Call initialize() first.');
+    }
+    return this._layoutTranscript;
+  }
+  
+  /**
    * Extract text for a page (cached - only extracts once)
+   * Uses transcript instead of PDF.js extraction
    */
   async extractTextForPage(pageIndex: number): Promise<PageContext> {
     const context = await this.getPageContext(pageIndex);
@@ -186,80 +209,28 @@ export class DocumentContext {
     }
     
     // Ensure initialized
-    if (!this._pdfjsDoc) {
+    if (!this._layoutTranscript) {
       await this.initialize();
     }
     
-    const pdf = this._getPdfjsDoc();
+    const transcript = this._getTranscript();
     
-    if (pageIndex < 0 || pageIndex >= pdf.numPages) {
-      throw new Error(`Page index ${pageIndex} out of range (0-${pdf.numPages - 1})`);
+    if (pageIndex < 0 || pageIndex >= transcript.pages.length) {
+      throw new Error(`Page index ${pageIndex} out of range (0-${transcript.pages.length - 1})`);
     }
     
-    // Extract text using cached pdfjs document
-    const page = await pdf.getPage(pageIndex + 1);
-    const rotation = page.rotate || 0;
-    // Get viewports: unrotated for coordinate conversion, rotated for visual dimensions
-    const viewportUnrotated = page.getViewport({ scale: 1.0, rotation: 0 });
-    const viewportRotated = page.getViewport({ scale: 1.0, rotation: rotation });
-    const textContent = await page.getTextContent();
-    
-    const items: TextItemWithPosition[] = [];
-    
-    for (const item of textContent.items) {
-      if ('str' in item && item.str && 'transform' in item) {
-        const transform = item.transform;
-        // PDF coordinates: origin at bottom-left, y increases upward
-        // Transform coordinates from getTextContent() are in the page's original (unrotated) user space
-        // First convert to top-left origin in unrotated space
-        const unrotatedX = transform[4];
-        const unrotatedY = viewportUnrotated.height - transform[5]; // Flip Y coordinate
-        
-        // Transform to visual (rotated) coordinates so ROI logic can be simple
-        // This normalizes all pages to the same coordinate system regardless of rotation
-        let visualX: number;
-        let visualY: number;
-        
-        if (rotation === 90) {
-          // 90° clockwise: unrotated right -> visual bottom, unrotated top -> visual right
-          // In top-left origin: (x, y) -> (unrotatedHeight - y, x)
-          visualX = viewportUnrotated.height - unrotatedY;
-          visualY = unrotatedX;
-        } else if (rotation === 270) {
-          // 270° (90° counter-clockwise): unrotated right -> visual top, unrotated bottom -> visual right
-          // In top-left origin: (x, y) -> (unrotatedHeight - y, x)
-          visualX = viewportUnrotated.height - unrotatedY;
-          visualY = unrotatedX;
-        } else if (rotation === 180) {
-          // 180°: unrotated right -> visual left, unrotated top -> visual bottom
-          // In top-left origin: (x, y) -> (unrotatedWidth - x, unrotatedHeight - y)
-          visualX = viewportUnrotated.width - unrotatedX;
-          visualY = viewportUnrotated.height - unrotatedY;
-        } else {
-          // 0°: no transformation needed
-          visualX = unrotatedX;
-          visualY = unrotatedY;
-        }
-        
-        const width = item.width || 0;
-        const height = item.height || 0;
-        
-        items.push({
-          str: item.str,
-          x: visualX,
-          y: visualY,
-          width,
-          height,
-        });
-      }
-    }
-    
-    // Update PageContext with rotated dimensions (visual space) if they differ
-    // This ensures ROI calculations use the correct visual dimensions
-    if (context.pageWidth !== viewportRotated.width || context.pageHeight !== viewportRotated.height) {
-      // PageContext was created with rotated dimensions in getPageContext, so this should match
-      // But we verify here for safety
-    }
+    // Convert LayoutSpan[] to TextItemWithPosition[] from cached transcript
+    const page = transcript.pages[pageIndex];
+    const items: TextItemWithPosition[] = page.spans.map((span) => {
+      const [x0, y0, x1, y1] = span.bbox;
+      return {
+        str: span.text,
+        x: x0,
+        y: y0,
+        width: x1 - x0,
+        height: y1 - y0,
+      };
+    });
     
     context.setTextItems(items);
     this._textExtracted.add(pageIndex);
@@ -312,15 +283,23 @@ export class DocumentContext {
   
   /**
    * Get bookmarks (extracted once, cached)
+   * TEMPORARY: Still uses PDF.js until bookmarks are migrated to transcript-based extraction
    */
   async getBookmarks(): Promise<Array<{ title: string; pageIndex: number }>> {
     if (this._bookmarksExtracted) {
       return this._bookmarks || [];
     }
     
-    // Ensure initialized
+    // Ensure initialized (this will load PDF.js for bookmarks)
     if (!this._pdfjsDoc) {
       await this.initialize();
+    }
+    
+    // If PDF.js is not available, return empty bookmarks
+    if (!this._pdfjsDoc) {
+      this._bookmarks = [];
+      this._bookmarksExtracted = true;
+      return [];
     }
     
     const pdf = this._getPdfjsDoc();

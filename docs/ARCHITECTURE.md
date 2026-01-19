@@ -7,8 +7,8 @@
 ```
 packages/core/src/
 ├── analyze/           # PDF loading, text extraction, caching
-│   ├── documentContext.ts  # Document-level state and caching
-│   ├── pageContext.ts      # Per-page caching
+│   ├── documentContext.ts  # Document-level state and caching (uses transcript)
+│   ├── pageContext.ts      # Per-page caching (uses transcript)
 │   └── readingOrder.ts     # Visual reading-order assembly helpers
 ├── core/             # Business logic (merge/split/assemble)
 ├── locators/         # Detection strategies (pluggable)
@@ -20,6 +20,45 @@ packages/core/src/
 │   ├── parse-algorithmic.ts # Parse narrative into instruction sets
 │   ├── normalize.ts        # Normalize sheet/spec IDs from narrative
 │   └── types.ts            # Narrative types and interfaces
+├── transcript/       # V3 transcript system (NEW)
+│   ├── types.ts            # Core transcript types (LayoutTranscript, LayoutSpan, etc.)
+│   ├── interfaces.ts       # TranscriptExtractor interface
+│   ├── factory.ts          # Extractor factory with fallback chain
+│   ├── canonicalize.ts     # Deterministic canonicalization
+│   ├── quality.ts          # Quality scoring and validation gates
+│   ├── candidates.ts       # Structural candidate generation
+│   ├── extractors/         # Extraction backends
+│   │   ├── pymupdfExtractor.ts  # PyMuPDF extractor (primary)
+│   │   └── pdfjsExtractor.ts   # PDF.js extractor (fallback)
+│   ├── sidecar/            # Python sidecar scripts
+│   │   ├── extract-transcript.py  # PyMuPDF extraction script
+│   │   └── requirements.txt
+│   ├── profiles/           # Extended profile system
+│   │   ├── types.ts        # SpecProfile, SheetTemplateProfile, EquipmentSubmittalProfile
+│   │   ├── registry.ts     # Profile registry with versioning
+│   │   └── validation.ts  # Profile validation gates
+│   ├── abstraction/        # Privacy-preserving pattern abstraction
+│   │   ├── abstractTranscript.ts  # Abstract transcript types
+│   │   ├── tokenVault.ts   # Token mapping and tokenization
+│   │   └── sanitize.ts     # Sanitization with privacy modes
+│   ├── ml/                 # ML Ruleset Compiler
+│   │   ├── rulesetCompiler.ts  # Compiler interface
+│   │   ├── apiCompiler.ts  # API-based compiler implementation
+│   │   └── types.ts        # Profile proposal types
+│   └── schedules/          # Schedule extraction
+│       ├── extractor.ts     # Schedule extraction engine
+│       ├── tableBuilder.ts  # Geometry-first table builder
+│       └── types.ts         # Schedule table types
+├── schedules/        # Schedule extraction (uses transcript)
+├── submittals/       # Submittal parsing (uses transcript)
+│   ├── extract/
+│   │   └── submittalParser.ts
+│   └── types.ts
+├── specs/            # Spec processing (enhanced with transcript)
+│   └── extract/
+│       ├── chromeRemoval.ts      # Chrome removal using candidates
+│       ├── paragraphNormalizer.ts # Paragraph normalization
+│       └── tableDetector.ts       # Basic table detection
 ├── workflows/        # Workflow engine (analyze/execute pattern)
 │   ├── types.ts      # Core workflow types (InventoryResult, CorrectionOverlay, etc.)
 │   ├── engine.ts     # WorkflowRunner factory
@@ -53,13 +92,15 @@ packages/core/src/
 
 - **`DocumentContext`**: Document-level state
   - Loads PDF once via `initialize()`
-  - Caches PDF bytes and pdfjs document
+  - **Uses transcript system** for text extraction (PyMuPDF primary, PDF.js fallback)
+  - Caches transcript and PDF bytes
   - Creates/manages `PageContext` instances
   - Coordinates text extraction (demand-driven)
+  - PDF.js document still loaded temporarily for bookmarks (until migrated)
 
 - **`PageContext`**: Per-page caching
   - Page dimensions, rotation
-  - Text items (extracted once, cached)
+  - Text items (extracted from transcript, cached)
   - Plain text (derived)
   - ROI-filtered views (derived)
 
@@ -68,7 +109,7 @@ packages/core/src/
   - Reconstructs wrapped titles correctly
   - Used by `RoiSheetLocator` for text assembly
 
-**Rule**: Only `analyze/` may load PDFs or create PDF.js documents.
+**Rule**: Only `analyze/` may load PDFs or create PDF.js documents. `DocumentContext` now uses transcript system internally.
 
 ### Core (`core/`)
 
@@ -222,6 +263,83 @@ packages/core/src/
 **Status**: ✅ Complete - narrative instructions are extracted, parsed, and validated against inventory. Validation report included in `InventoryResult.narrativeValidation` during merge workflow `analyze()` phase. All validation is advisory only and does not modify detection results.
 
 **Rule**: Narrative processing uses `DocumentContext` for PDF operations (complies with single-load pipeline).
+
+### Transcript (`transcript/`) (V3)
+
+**Purpose**: Backend-agnostic, transcript-first PDF extraction architecture
+
+- **`types.ts`**: Core transcript types
+  - `LayoutTranscript`: Complete transcript with pages, spans, metadata
+  - `LayoutPage`: Single page with spans, dimensions, rotation
+  - `LayoutSpan`: Text span with bbox, font, style information
+  - `QualityMetrics`: Quality scoring metrics
+
+- **`interfaces.ts`**: Extraction backend interface
+  - `TranscriptExtractor`: Interface for any extraction backend
+  - `ExtractOptions`: Extraction options (pages, includeLines, etc.)
+  - `EngineInfo`: Engine capability information
+
+- **`factory.ts`**: Extractor factory
+  - `createTranscriptExtractor()`: Creates extractor with fallback chain (PyMuPDF → PDF.js)
+  - Automatic canonicalization of all transcripts
+  - `isPyMuPDFAvailable()`, `isPDFjsAvailable()`: Runtime availability checks
+
+- **`extractors/pymupdfExtractor.ts`**: PyMuPDF extractor (primary)
+  - Uses Python sidecar (`extract-transcript.py`) for extraction
+  - Dict/rawdict-first approach for high-fidelity span extraction
+  - 95-99% bbox accuracy
+  - Requires Python 3.8+ and PyMuPDF
+
+- **`extractors/pdfjsExtractor.ts`**: PDF.js extractor (fallback)
+  - Direct PDF.js integration for environments without Python
+  - Lower bbox accuracy (15-25%) but always available
+  - Used when PyMuPDF unavailable
+
+- **`canonicalize.ts`**: Deterministic canonicalization
+  - Normalizes rotation to 0 (transforms bboxes)
+  - Normalizes coordinate origins (top-left visual space)
+  - Stable-sorts spans (deterministic order)
+  - Computes deterministic hashes (`contentHash`, `spanHash` excluding `extractionDate`)
+
+- **`quality.ts`**: Quality scoring and validation
+  - Per-page and aggregate quality metrics
+  - Quality gates (min char count, max replacement ratio, min ordering sanity, min confidence)
+  - Quality report generation
+
+- **`candidates.ts`**: Structural candidate generation
+  - Header/footer band detection (Y clustering + repetition)
+  - Font-size clustering
+  - Heading candidate detection (regex-based)
+  - Column hints (X clustering for tables)
+  - Table candidate detection (line density + grid patterns)
+
+- **`profiles/`**: Extended profile system
+  - `types.ts`: `SpecProfile`, `SheetTemplateProfile`, `EquipmentSubmittalProfile`
+  - `registry.ts`: Profile registry with versioning, validation, matching
+  - `validation.ts`: Profile validation gates
+
+- **`abstraction/`**: Privacy-preserving pattern abstraction
+  - `abstractTranscript.ts`: Abstract transcript types (tokenized content)
+  - `tokenVault.ts`: Token mapping and tokenization
+  - `sanitize.ts`: Sanitization with privacy modes (STRICT_STRUCTURE_ONLY, WHITELIST_ANCHORS, FULL_TEXT_OPT_IN)
+
+- **`ml/`**: ML Ruleset Compiler
+  - `rulesetCompiler.ts`: Compiler interface
+  - `apiCompiler.ts`: API-based compiler with LLM integration
+  - Compile-validate loop with automatic re-prompting
+  - Profile parsing and validation
+
+- **`schedules/`**: Schedule extraction
+  - `extractor.ts`: Schedule extraction engine
+  - `tableBuilder.ts`: Geometry-first table builder
+  - `types.ts`: Schedule table types
+
+- **`sidecar/extract-transcript.py`**: Python extraction script
+  - PyMuPDF-based extraction using dict/rawdict-first approach
+  - Extracts spans, bboxes, fonts, lines
+  - Quality metrics calculation
+
+**Rule**: Transcript system is backend-agnostic. All transcripts are automatically canonicalized. `DocumentContext` uses transcript system internally while maintaining backward-compatible API.
 
 ### Utils (`utils/`)
 

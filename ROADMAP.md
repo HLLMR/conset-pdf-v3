@@ -3,6 +3,13 @@
 **Last updated**: 2026-01-17
 
 **Recent Updates**:
+- ✅ **V3 PDF Extraction Architecture** - Complete implementation
+  - Transcript abstraction layer with PyMuPDF/PDF.js extractors
+  - Deterministic canonicalization and quality scoring
+  - Privacy-preserving abstraction (TokenVault, sanitization)
+  - ML Ruleset Compiler for profile generation
+  - Enhanced parsers (specs, schedules, submittals)
+  - Comprehensive test coverage
 - ✅ Narrative validation complete (Commits A4-A6)
 - ✅ Standards module complete (UCS/CSI)
 - ✅ GUI integration: Narrative validation UI, Set Order sorting, single addendum workflow
@@ -18,6 +25,83 @@ This document provides a comprehensive view of what's complete, what's in progre
 ---
 
 ## ✅ Fully Complete
+
+### V3 PDF Extraction Architecture
+
+**Status**: ✅ **100% Complete**
+
+**What's Done**:
+- ✅ **Transcript Abstraction Layer**
+  - Core types (`LayoutTranscript`, `LayoutSpan`, `LayoutPage`)
+  - `TranscriptExtractor` interface for backend-agnostic extraction
+  - PyMuPDF extractor (dict/rawdict-first approach, Python sidecar)
+  - PDF.js extractor (fallback for environments without Python)
+  - Extractor factory with automatic fallback chain
+- ✅ **Canonicalization**
+  - Rotation normalization (all pages to rotation=0)
+  - Coordinate normalization (consistent top-left origin)
+  - Stable span sorting (deterministic order)
+  - Deterministic hashes (`contentHash`, `spanHash` excluding `extractionDate`)
+- ✅ **Quality Scoring & Validation**
+  - Per-page and aggregate quality metrics
+  - Quality gates (min char count, max replacement ratio, min ordering sanity, min confidence)
+  - Quality report generation
+- ✅ **Candidate Generation**
+  - Header/footer band detection (Y clustering + repetition)
+  - Font-size clustering
+  - Heading candidate detection (regex-based)
+  - Column hints (X clustering for tables)
+  - Table candidate detection (line density + grid patterns)
+- ✅ **Profile System Extension**
+  - `SpecProfile` for specification documents
+  - `SheetTemplateProfile` for drawing templates
+  - `EquipmentSubmittalProfile` for equipment submittals
+  - Profile registry with versioning, validation, and matching
+- ✅ **Privacy Layer (Pattern Abstraction)**
+  - `TokenVault` for content → structural token mapping
+  - Sanitization with privacy modes (STRICT_STRUCTURE_ONLY, WHITELIST_ANCHORS, FULL_TEXT_OPT_IN)
+  - Deterministic pseudonymization (HMAC-based)
+  - Sampling strategies (chrome bands, headings, tables)
+- ✅ **ML Ruleset Compiler**
+  - `RulesetCompiler` interface
+  - API-based compiler with LLM integration (OpenAI-compatible)
+  - Compile-validate loop with automatic re-prompting
+  - Profile parsing and validation
+- ✅ **Enhanced Parsers**
+  - Spec parser: Chrome removal, paragraph normalization, table detection
+  - Schedule extraction: Geometry-first table builder
+  - Submittal parser: Packet segmentation, field extraction, table extraction
+- ✅ **DocumentContext Migration**
+  - Migrated to use transcript system internally
+  - Backward compatible API (no breaking changes)
+  - PDF.js still used for bookmarks (temporary, until migrated)
+- ✅ **Testing & Documentation**
+  - Determinism tests (contentHash, span stability, bbox alignment)
+  - Quality scoring tests
+  - Extraction accuracy tests
+  - Bbox accuracy validation tests
+  - ML compiler tests with mock responses
+  - Complete architecture documentation
+  - Migration guide (V2 → V3)
+  - ML compiler usage guide
+
+**Files**:
+- `packages/core/src/transcript/` (complete module)
+- `packages/core/src/transcript/extractors/` (PyMuPDF, PDF.js)
+- `packages/core/src/transcript/sidecar/extract-transcript.py` (Python extraction script)
+- `packages/core/src/transcript/profiles/` (extended profile system)
+- `packages/core/src/transcript/abstraction/` (privacy layer)
+- `packages/core/src/transcript/ml/` (ML compiler)
+- `packages/core/src/transcript/schedules/` (schedule extraction)
+- `packages/core/src/submittals/` (submittal parser)
+- `packages/core/src/specs/extract/` (enhanced with chrome removal, paragraph normalization)
+- `tests/transcript/` (comprehensive test suite)
+- `docs/TRANSCRIPT_ARCHITECTURE.md`
+- `docs/MIGRATION_V3.md`
+- `docs/ML_RULESET_COMPILER.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+
+**Documentation**: Fully documented in `docs/TRANSCRIPT_ARCHITECTURE.md`, `docs/MIGRATION_V3.md`, `docs/ML_RULESET_COMPILER.md`
 
 ### Specs Patch Workflow
 

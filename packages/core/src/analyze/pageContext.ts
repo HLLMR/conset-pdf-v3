@@ -1,5 +1,6 @@
 import type { TextItemWithPosition } from '../utils/pdf.js';
 import type { TitleBlockBounds } from '../utils/pdf.js';
+import type { LayoutSpan } from '../transcript/types.js';
 
 /**
  * PageContext: Caches expensive per-page operations
@@ -99,6 +100,27 @@ export class PageContext {
     this._textItems = items;
     // Clear cached plain text if items change
     this._plainText = null;
+  }
+  
+  /**
+   * Set spans from transcript (converts LayoutSpan[] to TextItemWithPosition[])
+   * 
+   * @param spans Layout spans from transcript
+   */
+  setSpansFromTranscript(spans: LayoutSpan[]): void {
+    // Convert LayoutSpan[] to TextItemWithPosition[]
+    // Preserve visual coordinate space (already normalized in canonicalized transcript)
+    const items: TextItemWithPosition[] = spans.map(span => {
+      const [x0, y0, x1, y1] = span.bbox;
+      return {
+        str: span.text,
+        x: x0,
+        y: y0,
+        width: x1 - x0,
+        height: y1 - y0,
+      };
+    });
+    this.setTextItems(items);
   }
   
   /**

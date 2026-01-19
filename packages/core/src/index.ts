@@ -149,3 +149,39 @@ export * from './specs/inventory/index.js';
 export { detectPageRegions } from './text/pageRegions.js';
 export type { TextPage, DetectedPageRegions } from './text/pageRegions.js';
 export type { TextItemWithPosition } from './utils/pdf.js';
+
+// Export transcript system
+export type * from './transcript/types.js';
+export type * from './transcript/interfaces.js';
+export { createTranscriptExtractor, isPyMuPDFAvailable, isPDFjsAvailable } from './transcript/factory.js';
+export { PyMuPDFExtractor } from './transcript/extractors/pymupdfExtractor.js';
+export { PDFjsExtractor } from './transcript/extractors/pdfjsExtractor.js';
+export { canonicalizeTranscript } from './transcript/canonicalize.js';
+export { scoreTranscriptQuality } from './transcript/quality.js';
+export type { QualityReport } from './transcript/quality.js';
+export { generateCandidates } from './transcript/candidates.js';
+export type { CandidateReport } from './transcript/candidates.js';
+
+// Export profile system
+export type * from './transcript/profiles/types.js';
+export { ProfileRegistry } from './transcript/profiles/registry.js';
+export { validateProfile } from './transcript/profiles/validation.js';
+export type { ProfileValidation } from './transcript/profiles/validation.js';
+
+// Export abstraction (privacy layer)
+export { TokenVault } from './transcript/abstraction/tokenVault.js';
+export { sanitizeTranscript, preserveTokenShape } from './transcript/abstraction/sanitize.js';
+export type * from './transcript/abstraction/abstractTranscript.js';
+
+// Export schedule extraction
+export { extractSchedules, exportScheduleToCSV, exportScheduleToJSON } from './transcript/schedules/extractor.js';
+export type * from './transcript/schedules/types.js';
+
+// Export submittal parser
+export { parseSubmittal, extractPacketFields, extractPacketTables } from './submittals/extract/submittalParser.js';
+export type * from './submittals/types.js';
+
+// Export ML Ruleset Compiler
+export type * from './transcript/ml/types.js';
+export type { RulesetCompiler } from './transcript/ml/rulesetCompiler.js';
+export { APIRulesetCompiler, createAPIRulesetCompiler } from './transcript/ml/apiCompiler.js';
