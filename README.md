@@ -5,6 +5,24 @@ Core library and CLI for building "latest-and-greatest" construction document se
 ## Current Status (2026-01-17)
 
 **✅ Fully Implemented:**
+- **Specs Patch Workflow** - Complete workflow engine implementation
+  - Extract Word-generated spec PDFs to structured AST
+  - Hierarchical anchor detection and validation
+  - Deterministic patch operations (insert, move, renumber, replace, delete)
+  - HTML/CSS → PDF rendering via Playwright (deterministic, cross-viewer compatible)
+  - BookmarkAnchorTree generation for bookmarks pipeline integration
+  - CLI command: `specs-patch`
+- **Fix Bookmarks Workflow** - Complete workflow engine implementation
+  - Read, validate, and repair PDF bookmarks
+  - Rebuild bookmarks from `BookmarkAnchorTree` (Specs Pipeline) or sheet/section inventory
+  - **Footer-First Section Anchoring**: Deterministic section destination resolution using footer text extraction
+    - Auto-detects page regions (header/heading/body/footer) using ROI bands
+    - Extracts section codes from footer band, maps to first occurrence page
+    - Numeric sorting, proper hierarchy, junk title rejection
+    - Validation gates with override flag
+  - Deterministic sidecar writer (QPDF/pikepdf) for cross-viewer compatibility
+  - Bookmark correction support (rename, reorder, delete, retarget, rebuild)
+  - CLI command: `fix-bookmarks` with `--section-start-strategy` and `--allow-invalid-destinations` flags
 - Merge workflow (Update Documents) - Complete workflow engine implementation
   - **Drawings**: ROI-based detection with layout profiles (or legacy fallback)
   - **Specs**: Text-based section ID detection
@@ -23,7 +41,7 @@ Core library and CLI for building "latest-and-greatest" construction document se
 - Inventory analysis with corrections support
 
 **⚠️ Partially Implemented:**
-- Split/Assemble/Bookmark workflows - CLI commands exist, workflow engine not yet implemented
+- Split/Assemble workflows - CLI commands exist, workflow engine not yet implemented
 
 **📚 Documentation:**
 - Complete API documentation
@@ -72,10 +90,12 @@ Both CLI and GUI applications route through the same workflow engine for consist
 
 **Workflow Engine**:
 - `createMergeWorkflowRunner()` - Merge workflow with analyze/execute pattern
+- `createSpecsPatchWorkflowRunner()` - Specs patch workflow with analyze/execute pattern
+- `createBookmarksWorkflowRunner()` - Bookmarks workflow with analyze/execute pattern
 - `createWorkflowRunner()` - Generic workflow runner factory
 - `InventoryResult` - Standardized inventory analysis result
-- `CorrectionOverlay` - User corrections (ignore rows, override IDs)
-- Workflow types: `merge`, `split`, `assemble`, `bookmark` (only `merge` is currently implemented)
+- `CorrectionOverlay` - User corrections (ignore rows, override IDs, patch operations)
+- Workflow types: `merge`, `specs-patch`, `fix-bookmarks`, `split`, `assemble` (`merge`, `specs-patch`, and `fix-bookmarks` are fully implemented)
 
 ## Install
 
@@ -106,7 +126,7 @@ npm run verify:invariants  # Architecture invariants
 
 **Merge addenda** (most common):
 ```bash
-conset-pdf merge-addenda \
+node packages/cli/dist/cli.js merge-addenda \
   --original Original.pdf \
   --addenda Addendum1.pdf Addendum2.pdf \
   --output Final.pdf \
@@ -116,7 +136,7 @@ conset-pdf merge-addenda \
 
 **Dry-run inventory analysis** (preview before merging):
 ```bash
-conset-pdf merge-addenda \
+node packages/cli/dist/cli.js merge-addenda \
   --original Original.pdf \
   --addenda Addendum1.pdf \
   --type drawings \
@@ -124,9 +144,76 @@ conset-pdf merge-addenda \
   --json-output inventory.json
 ```
 
+**Note**: All CLI examples assume execution from the repository root. For installed CLI usage, replace `node packages/cli/dist/cli.js` with `conset-pdf` (if installed globally) or `npx @conset-pdf/cli`.
+
+**Specs patch** (extract, patch, and render):
+```bash
+node packages/cli/dist/cli.js specs-patch \
+  --input Specs.pdf \
+  --output Specs-Patched.pdf \
+  --patch patch.json \
+  --json-output specs-patch-ast.json \
+  --report specs-patch-audit-trail.json
+```
+
+**Specs patch dry-run** (analyze only, produces inventory JSON):
+```bash
+node packages/cli/dist/cli.js specs-patch \
+  --input Specs.pdf \
+  --dry-run \
+  --json-output specs-patch-inventory.json
+```
+
+**Fix bookmarks** (dry-run to analyze existing bookmarks):
+```bash
+node packages/cli/dist/cli.js fix-bookmarks \
+  --input drawing-set.pdf \
+  --dry-run \
+  --json-output fix-bookmarks-inventory.json
+```
+
+**Fix bookmarks** (rebuild from Specs Pipeline output, defaults to specs-v1):
+```bash
+node packages/cli/dist/cli.js fix-bookmarks \
+  --input spec.pdf \
+  --output spec-fixed.pdf \
+  --bookmark-tree specs-bookmark-tree.json \
+  --rebuild \
+  --json-output fix-bookmarks-tree.json \
+  --report fix-bookmarks-audit.json
+```
+
+**Fix bookmarks with detailed subsections**:
+```bash
+node packages/cli/dist/cli.js fix-bookmarks \
+  --input spec.pdf \
+  --output spec-fixed.pdf \
+  --bookmark-tree specs-bookmark-tree.json \
+  --rebuild \
+  --bookmark-profile specs-v2-detailed \
+  --include-subsections \
+  --max-depth 4 \
+  --json-output fix-bookmarks-tree.json
+```
+
+**Note**: Bookmark profiles control how bookmarks are shaped:
+- **raw**: Preserves existing bookmarks (safe default)
+- **specs-v1**: Clean SECTION/PART/Article hierarchy (default when `--bookmark-tree` and `--rebuild` provided)
+- **specs-v2-detailed**: Like specs-v1 but can include structural subsections when `--include-subsections` is enabled
+
+Bookmarks are written with viewer-compatible destinations:
+- Uses `/Fit` view type by default (most compatible)
+- Page references are indirect (not inline dictionaries)
+- Writes both `/Dest` and `/A GoTo` actions for maximum viewer compatibility
+- Post-write verification ensures destinations work in PDF-XChange and other viewers
+
+**Note**: Examples assume execution from the repository root. The `--json-output` flag behavior differs by mode:
+- **Dry-run mode**: Writes full inventory JSON (analyze results with rows, issues, summary, meta)
+- **Execute mode**: Writes AST JSON (SpecDoc structure only) or bookmark tree JSON (bookmarks workflow)
+
 **Detect sheet IDs** (test layout profile):
 ```bash
-conset-pdf detect \
+node packages/cli/dist/cli.js detect \
   --input Set.pdf \
   --layout layout.json \
   --pages 1,5,20 \
@@ -135,7 +222,7 @@ conset-pdf detect \
 
 **Split set**:
 ```bash
-conset-pdf split-set \
+node packages/cli/dist/cli.js split-set \
   --input Set.pdf \
   --output-dir ./output \
   --type drawings
@@ -143,7 +230,7 @@ conset-pdf split-set \
 
 **Assemble set**:
 ```bash
-conset-pdf assemble-set \
+node packages/cli/dist/cli.js assemble-set \
   --input-dir ./subsets \
   --output Final.pdf \
   --type drawings
@@ -238,10 +325,11 @@ conset-pdf/
 
 | Workflow | Status | Description |
 |----------|--------|-------------|
+| **Specs Patch** | ✅ Implemented | Extract spec PDFs to AST, apply deterministic patches, render back to PDF |
 | **Update Documents** (merge) | ✅ Implemented | Merge addenda into original set, replace updated sheets, insert new sheets |
+| **Fix Bookmarks** | ✅ Implemented | Read, validate, repair, and write PDF bookmarks. Rebuild from BookmarkAnchorTree or inventory |
 | Split Set | ⚠️ Placeholder | Split PDF into discipline-specific subsets (CLI command exists, workflow engine not implemented) |
 | Assemble Set | ⚠️ Placeholder | Reassemble subsets into final ordered set (CLI command exists, workflow engine not implemented) |
-| Fix Bookmarks | ⚠️ Placeholder | Regenerate bookmarks from detected sheet IDs (workflow engine not implemented) |
 
 ## Documentation
 

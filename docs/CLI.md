@@ -413,6 +413,302 @@ conset-pdf assemble-set \
 
 ---
 
+### specs-patch
+
+Extract, patch, and render spec PDFs. Extracts Word-generated spec PDFs to structured AST, applies deterministic patch operations, and renders back to PDF.
+
+**Purpose**: Treat specs as structured documents with hierarchical anchors for navigation and editing.
+
+**Usage**:
+```bash
+conset-pdf specs-patch \
+  --input <path> \
+  --output <path> \
+  [options]
+```
+
+**Required Arguments**:
+- `--input <path>`: Path to input PDF
+
+**Options**:
+- `--output <path>`: Path to output PDF (required unless `--dry-run`)
+- `--patch <path>`: Path to patch JSON file
+- `--dry-run`: Analyze only (output inventory JSON)
+- `--json-output <path>`: Path to write JSON output (behavior depends on mode):
+  - **Dry-run mode**: Writes full inventory JSON (analyze results with rows, issues, summary, and meta including SpecDoc AST)
+  - **Execute mode**: Writes AST JSON (SpecDoc structure only)
+- `--report <path>`: Path to write audit trail JSON report (execute mode only)
+- `--verbose`: Verbose output (default: false)
+- `--custom-section-pattern <pattern>`: Custom regex pattern for section ID detection
+
+**Input Format**: PDF file (Word-generated spec PDF)
+
+**Output Format**:
+- **Normal mode**: Output PDF file + optional AST JSON + optional audit trail JSON
+- **Dry-run mode**: JSON inventory file (or stdout)
+
+**Dry-Run Inventory JSON Shape**:
+```json
+{
+  "workflowId": "specs-patch",
+  "rows": [
+    {
+      "id": "input-pdf:0:section-23-09-00-5-node-0",
+      "page": 5,
+      "status": "ok",
+      "confidence": 1.0,
+      "anchor": "2.4-T.5.b.1",
+      "nodeType": "list-item",
+      "level": 2,
+      "textPreview": "Requirement text..."
+    }
+  ],
+  "issues": [
+    {
+      "id": "issue-0",
+      "severity": "error",
+      "code": "ANCHOR_REQUIRED",
+      "message": "Node missing anchor (required for patchability)",
+      "rowIds": ["input-pdf:0:section-23-09-00-5-node-1"]
+    }
+  ],
+  "conflicts": [],
+  "summary": {
+    "totalRows": 50,
+    "rowsWithIds": 48,
+    "rowsWithoutIds": 2,
+    "rowsOk": 48,
+    "rowsWarning": 0,
+    "rowsError": 2,
+    "sectionsExtracted": 3,
+    "nodesExtracted": 50
+  },
+  "meta": {
+    "specDoc": { /* SpecDoc AST */ },
+    "bookmarkTree": { /* BookmarkAnchorTree */ }
+  }
+}
+```
+
+**Canonical Usage Example**:
+
+Run from the repository root. This example demonstrates the recommended workflow:
+
+```bash
+# Dry-run: Analyze spec PDF and generate inventory JSON
+node packages/cli/dist/cli.js specs-patch \
+  --input path/to/Specs.pdf \
+  --dry-run \
+  --json-output specs-patch-inventory.json \
+  --verbose
+
+# Execute: Apply patches and render to PDF (with AST output)
+node packages/cli/dist/cli.js specs-patch \
+  --input path/to/Specs.pdf \
+  --output Specs-Patched.pdf \
+  --patch patch.json \
+  --json-output specs-patch-ast.json \
+  --report specs-patch-audit-trail.json \
+  --verbose
+```
+
+**Examples**:
+
+Basic extract and render:
+```bash
+node packages/cli/dist/cli.js specs-patch \
+  --input Specs.pdf \
+  --output Specs-Output.pdf
+```
+
+With patch file and outputs:
+```bash
+node packages/cli/dist/cli.js specs-patch \
+  --input Specs.pdf \
+  --output Specs-Patched.pdf \
+  --patch patch.json \
+  --json-output specs-patch-ast.json \
+  --report specs-patch-audit-trail.json
+```
+
+Dry-run analysis (inventory JSON):
+```bash
+node packages/cli/dist/cli.js specs-patch \
+  --input Specs.pdf \
+  --dry-run \
+  --json-output specs-patch-inventory.json
+```
+
+**Note**: All examples assume execution from the repository root. For installed CLI usage, replace `node packages/cli/dist/cli.js` with `conset-pdf` (if installed globally) or `npx @conset-pdf/cli`.
+
+**Exit Codes**:
+- `0`: Success
+- `2`: Invalid arguments or validation error
+- `4`: File I/O error (file not found, permission denied)
+
+---
+
+### fix-bookmarks
+
+Fix PDF bookmarks: read, validate, repair, and write bookmarks. Can rebuild bookmarks from `BookmarkAnchorTree` (Specs Pipeline) or from sheet/section inventory.
+
+**Purpose**: Regenerate or repair PDF bookmarks that are missing, incorrect, or need updating after document changes.
+
+**Usage**:
+```bash
+conset-pdf fix-bookmarks \
+  --input <path> \
+  --output <path> \
+  [options]
+```
+
+**Required Arguments**:
+- `--input <path>`: Input PDF path
+
+**Options**:
+- `--output <path>`: Output PDF path (required unless `--dry-run`)
+- `--source <type>`: Source type for inventory-based fallback (`specs`, `drawings`, or `auto`). Default: `auto`
+- `--bookmark-tree <path>`: Path to `BookmarkAnchorTree` JSON (from Specs Pipeline)
+- `--profile <path>`: Path to layout profile JSON (for drawings detection)
+- `--sheet-id-roi <roi>`: Sheet ID ROI: `"x,y,width,height"` (normalized 0-1)
+- `--sheet-title-roi <roi>`: Sheet title ROI: `"x,y,width,height"` (normalized 0-1)
+- `--bookmark-profile <id>`: Bookmark profile: `raw`, `specs-v1`, or `specs-v2-detailed`. Default: `specs-v1` if `--bookmark-tree` and `--rebuild`, `raw` otherwise
+- `--max-depth <number>`: Maximum bookmark depth (overrides profile default)
+- `--max-title-length <number>`: Maximum title length before truncation (overrides profile default)
+- `--include-subsections`: Include subsections (only meaningful for `specs-v2-detailed`)
+- `--dry-run`: Analyze only, output inventory JSON (no PDF write)
+- `--json-output <path>`: Path to write JSON output (behavior depends on mode):
+  - **Dry-run mode**: Writes full inventory JSON (analyze results with rows, issues, summary, and meta including bookmark tree)
+  - **Execute mode**: Writes bookmark tree JSON (post-write bookmark tree structure only)
+- `--report <path>`: Path for audit trail JSON (execute mode only)
+- `--rebuild`: Full rebuild mode (authoritative tree wins, ignore existing)
+- `--section-start-strategy <strategy>`: Section start resolution strategy:
+  - `footer-first` (default when `--bookmark-tree` provided): Extract section codes from footer text, map to first occurrence page
+  - `heading-only`: Use layout-aware heading resolver (heading band only)
+  - `hint-only`: Use `pageIndexHint` from bookmark tree (least reliable)
+- `--allow-invalid-destinations`: Allow invalid section destinations (override validation gate)
+- `--verbose`: Verbose output
+
+**Examples**:
+
+1. **Dry-run: Analyze existing bookmarks**
+```bash
+conset-pdf fix-bookmarks \
+  --input drawing-set.pdf \
+  --dry-run \
+  --json-output fix-bookmarks-inventory.json
+```
+
+2. **Fix bookmarks using Specs Pipeline output (defaults to specs-v1 with --rebuild)**
+```bash
+conset-pdf fix-bookmarks \
+  --input spec.pdf \
+  --output spec-fixed.pdf \
+  --bookmark-tree specs-bookmark-tree.json \
+  --rebuild \
+  --json-output fix-bookmarks-tree.json \
+  --report fix-bookmarks-audit.json
+```
+
+3. **Fix bookmarks with detailed subsections (specs-v2-detailed)**
+```bash
+conset-pdf fix-bookmarks \
+  --input spec.pdf \
+  --output spec-fixed.pdf \
+  --bookmark-tree specs-bookmark-tree.json \
+  --rebuild \
+  --bookmark-profile specs-v2-detailed \
+  --include-subsections \
+  --max-depth 4 \
+  --json-output fix-bookmarks-tree.json \
+  --report fix-bookmarks-audit.json
+```
+
+4. **Preserve existing bookmarks (raw profile)**
+```bash
+conset-pdf fix-bookmarks \
+  --input existing.pdf \
+  --output existing-preserved.pdf \
+  --bookmark-profile raw \
+  --json-output fix-bookmarks-tree.json
+```
+
+5. **Rebuild bookmarks from sheet inventory**
+```bash
+conset-pdf fix-bookmarks \
+  --input drawing-set.pdf \
+  --output drawing-set-fixed.pdf \
+  --source drawings \
+  --profile layout.json \
+  --rebuild \
+  --json-output fix-bookmarks-tree.json
+```
+
+6. **Fix bookmarks with inventory fallback**
+```bash
+conset-pdf fix-bookmarks \
+  --input drawing-set.pdf \
+  --output drawing-set-fixed.pdf \
+  --source drawings \
+  --sheet-id-roi "0.1,0.9,0.15,0.05"
+```
+
+**Outputs**:
+- **Dry-run mode**: Prints full inventory JSON to stdout (or `--json-output` file). Includes rows, issues, summary, and meta with bookmark tree.
+- **Execute mode**: Writes PDF with updated bookmarks, optionally writes:
+  - Audit trail JSON (`--report`): Complete execution report with validation results
+  - Bookmark tree JSON (`--json-output`): Post-write bookmark tree structure only
+
+**Integration with Specs Pipeline**:
+- Provide `BookmarkAnchorTree` JSON via `--bookmark-tree` option
+- **Footer-First Section Anchoring** (default with `--rebuild`):
+  - Auto-detects page regions (header, heading, body, footer) using text density analysis
+  - Extracts section codes (e.g., "23 05 53") from footer text on each page
+  - Maps each section code to its first occurrence page
+  - Uses footer mapping for section bookmark destinations (avoids cross-reference false matches)
+  - Falls back to heading-based resolver if footer mapping unavailable
+  - Falls back to `pageIndexHint` if both footer and heading resolution fail
+- **Page Indexing**: Internal operations use 0-based page indices (PDF convention); viewer display uses 1-based page numbers
+- Anchors provide stable identifiers across document revisions
+
+**Bookmark Profiles**:
+- **raw**: Preserves bookmarks as-is with minimal normalization (safe default for existing bookmarks)
+- **specs-v1**: Filters to SECTION/PART/Article hierarchy only (max depth 2). Default when `--bookmark-tree` and `--rebuild` are provided.
+- **specs-v2-detailed**: Like specs-v1 but can include deeper structural subsections when `--include-subsections` is enabled (max depth 4)
+
+**Default Behavior**:
+- When `--bookmark-tree` and `--rebuild` are provided: defaults to `specs-v1` profile
+- Otherwise: defaults to `raw` profile (preserves existing bookmarks)
+- Use `--bookmark-profile` to override the default
+
+**Profile Features**:
+- **specs-v1**: Filters out non-structural nodes (body text fragments, list items), normalizes titles, deduplicates roots, sorts by section/part/article order
+- **specs-v2-detailed**: Same as specs-v1, plus allows structural subsections (e.g., "2.4-T.5.b.1") when `--include-subsections` is enabled
+- **raw**: Minimal normalization only (whitespace collapse, truncation if max-title-length specified)
+
+**Destination Format**:
+- Bookmarks are written with `/Fit` view type by default for maximum viewer compatibility
+- Page references use indirect objects (not inline dictionaries) for proper viewer support
+- Both `/Dest` and `/A GoTo` actions are written for maximum compatibility (some viewers like PDF-XChange prefer `/A`)
+- Post-write verification ensures destinations are valid and viewer-compatible
+
+**Section Start Resolution** (controlled by `--section-start-strategy`):
+- **Footer-First** (default with `--rebuild` and `--bookmark-tree`): 
+  - Extracts section codes from footer text (footer band: bottom 12% of page)
+  - Maps each section code to its first occurrence page (lowest page index)
+  - Most reliable for specs documents with repeating footer lines
+  - Falls back to heading-based resolver if footer mapping unavailable
+- **Heading-Only**: Searches heading band (top 0-30%) for section headings. Layout-aware, avoids cross-references in body text.
+- **Hint-Only**: Uses `pageIndexHint` from `BookmarkAnchorTree` as last resort. May be incorrect/stale.
+- Section bookmarks are sorted numerically by section code (e.g., 23 05 48 < 23 05 53 < 23 07 00)
+- **Validation Gate**: If any section destination is invalid, `fix-bookmarks` fails unless `--allow-invalid-destinations` is provided
+
+**Requirements**:
+- Python 3.8+ with `pikepdf>=8.0.0` installed (for bookmark writing)
+- Run `pip install pikepdf>=8.0.0` before using
+
+---
+
 ## Common Patterns
 
 ### Using Layout Profiles
@@ -501,6 +797,10 @@ The CLI routes through the same workflow engine as the GUI:
 
 - **`merge-addenda`** (with `--dry-run`): Uses `runner.analyze()`
 - **`merge-addenda`** (normal): Uses `runner.execute()`
+- **`fix-bookmarks`** (with `--dry-run`): Uses `runner.analyze()`
+- **`fix-bookmarks`** (normal): Uses `runner.execute()`
+- **`specs-patch`** (with `--dry-run`): Uses `runner.analyze()`
+- **`specs-patch`** (normal): Uses `runner.execute()`
 - Other commands: Use legacy APIs directly (workflow engine not yet implemented)
 
 This ensures consistency between CLI and GUI behavior.

@@ -238,26 +238,298 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 
 ## Fix Bookmarks
 
-**Domain Meaning**: Regenerate PDF bookmarks from detected sheet IDs and titles. Useful when bookmarks are missing or incorrect in source PDFs.
+**Domain Meaning**: Read, validate, repair, and write PDF bookmarks. Can rebuild bookmarks from `BookmarkAnchorTree` (Specs Pipeline) or from sheet/section inventory. Useful when bookmarks are missing, incorrect, or need to be regenerated after document changes.
 
-**Status**: ⚠️ **Placeholder** (workflow engine not implemented)
+**Status**: ✅ **Implemented** (workflow engine + CLI)
 
-### Current Implementation
+### Inputs
 
-- **CLI Command**: Not implemented
-- **Workflow Engine**: Not implemented
-- **GUI**: Not implemented
+**Analyze Input** (`BookmarksAnalyzeInput`):
+```typescript
+{
+  inputPdfPath: string;
+  bookmarkTree?: BookmarkAnchorTree;  // Optional: from Specs Pipeline
+  docType?: 'drawings' | 'specs';     // Optional: for inventory-based fallback
+  profile?: LayoutProfile;             // Optional: for drawings detection
+  options?: {
+    verbose?: boolean;
+    jsonOutputDir?: string;
+  };
+}
+```
 
-### Planned Inputs
+**Execute Input** (`BookmarksExecuteInput`):
+```typescript
+{
+  inputPdfPath: string;
+  outputPdfPath: string;
+  bookmarkTree?: BookmarkAnchorTree;
+  docType?: 'drawings' | 'specs';
+  profile?: LayoutProfile;
+  options?: {
+    verbose?: boolean;
+    reportPath?: string;        // Audit trail JSON
+    jsonOutputPath?: string;     // Bookmark tree JSON (post-write)
+    rebuild?: boolean;           // Full rebuild mode
+    style?: BookmarkStyleOptions; // Bookmark style options (profile, maxDepth, etc.)
+  };
+  analyzed?: {
+    bookmarkTree?: BookmarkTree; // From applyCorrections
+  };
+  corrections?: BookmarksCorrectionOverlay;
+}
+```
 
-- Input PDF path
-- Output PDF path
-- Layout profile (for detection)
-- Document type (`drawings` or `specs`)
+### Analyze Outputs
 
-### Planned Outputs
+**Inventory Result** (`InventoryResult`):
+- **Rows**: One row per bookmark node
+  - `id`: Stable identifier (format: `${source}:${anchor || logicalPath}`)
+  - `page`: Page number (1-based)
+  - `status`: `'ok'`, `'warning'`, or `'error'`
+  - `confidence`: Validation confidence (0.0 to 1.0)
+  - `source`: Source of bookmark (`'existing'`, `'bookmarkTree'`, `'inventory'`)
 
-- PDF with regenerated bookmarks
+- **Issues**: Validation problems
+  - `BOOKMARK_ORPHAN`: Bookmark has no valid destination
+  - `BOOKMARK_DEAD_DEST`: Bookmark destination points to invalid page index
+  - `BOOKMARK_INVALID_FIT`: Unsupported fit type (reported, not dropped)
+  - `BOOKMARK_MISMATCHED_HIERARCHY`: Hierarchy level doesn't match expected structure
+  - `BOOKMARK_DUPLICATE_TITLE`: Multiple bookmarks with same title at same level
+  - `BOOKMARK_ANCHOR_NOT_FOUND`: Anchor from BookmarkAnchorTree not found in PDF
+  - `BOOKMARK_PAGE_HINT_MISMATCH`: pageIndexHint doesn't match resolved page
+
+- **Summary**: Statistics
+  - `totalRows`: Total bookmarks analyzed
+  - `rowsWithIds`: Bookmarks with stable IDs
+  - `rowsOk`: Bookmarks with no issues
+  - `rowsWarning`: Bookmarks with warnings
+  - `rowsError`: Bookmarks with errors
+  - `issuesCount`: Total issues detected
+
+- **Meta**: Workflow metadata
+  - `bookmarkTree`: Extracted/validated bookmark tree
+  - `sourceTree`: Original BookmarkAnchorTree (if provided)
+
+### Corrections Supported
+
+1. **Rename**: Update bookmark titles (keyed by stable `row.id`)
+2. **Reorder**: Reorder bookmarks (array of `row.id` values)
+3. **Delete**: Remove bookmarks (array of `row.id` values)
+4. **Retarget**: Update destinations (keyed by `row.id`)
+5. **Rebuild**: Full rebuild mode (authoritative tree wins, ignore existing)
+
+### Execute Outputs
+
+**Execute Result** (`ExecuteResult`):
+- **Outputs**: File paths
+  - `outputPdfPath`: Path to PDF with updated bookmarks
+  - `reportPath`: Audit trail JSON (if requested)
+  - `bookmarkTreeJsonPath`: Post-write bookmark tree JSON (if requested)
+
+- **Summary**: Execution statistics
+  - `success`: `true` if validation passed
+  - `bookmarksRead`: Number of bookmarks read back after write
+  - `bookmarksWritten`: Number of bookmarks written
+  - `destinationsValidated`: Number of valid destinations
+  - `destinationsInvalid`: Number of invalid destinations
+
+- **Warnings**: Validation issues (if any)
+
+### Implementation Details
+
+- **Workflow Runner**: `createBookmarksWorkflowRunner()`
+- **Implementation**: `workflows/bookmarks/bookmarksWorkflow.ts`
+- **CLI Command**: `fix-bookmarks`
+- **Bookmark Writer**: Python sidecar (pikepdf/QPDF) for cross-viewer reliability
+
+**Outline Tree Structure**:
+- All outline items are created as **indirect objects** using `pdf.make_indirect()` (not inline dictionaries)
+- Root-level items are linked via `/Next` and `/Prev` for bidirectional traversal
+- Items with children have `/First`, `/Last`, and `/Count` properly set; children have `/Parent` references
+- Post-write verification ensures all items are indirect, reachable via `/Next` chain, and have proper `/Dest` and `/A` actions
+- This ensures PDF-XChange and other viewers can properly display the full bookmark tree
+
+### Integration with Specs Pipeline
+
+The bookmarks workflow can consume `BookmarkAnchorTree` from the Specs Pipeline:
+- Provide `BookmarkAnchorTree` JSON via `--bookmark-tree` option
+- **Footer-First Section Anchoring** (default with `--rebuild` and `--bookmark-tree`):
+  - **ROI Band Detection**: Auto-detects page regions (header: 0-12%, heading: 0-30%, body: 12-88%, footer: 88-100%) using text density analysis
+  - **Section Code Extraction**: Extracts section codes (e.g., "23 05 53", "01 23 31") from footer band text only
+  - **First-Page Mapping**: Maps each section code to its first occurrence page (lowest page index, 0-based)
+  - **Resolution Priority**: Footer-first → heading-based (heading band only) → `pageIndexHint` (clamped) → invalid (marked as error)
+  - **Section Page Ranges**: Computed from sorted section start pages for article hierarchy assignment
+  - **Junk Title Rejection**: Articles must have title starting with `${anchor} ` or are skipped
+  - **Numeric Sorting**: Sections sorted by 3-component tuple `[division, section, subsection]` (e.g., 23 05 48 < 23 05 53 < 23 07 00)
+  - **Validation Gate**: Fails on invalid section destinations unless `--allow-invalid-destinations` provided
+  - **Strategy Override**: Use `--section-start-strategy <footer-first|heading-only|hint-only>` to override default
+- **Page Indexing**: Internal operations use 0-based page indices (PDF convention); viewer display uses 1-based page numbers
+- Anchors provide stable identifiers across document revisions
+
+---
+
+## Specs Patch
+
+**Domain Meaning**: Extract Word-generated spec PDFs to structured AST, apply deterministic patch operations (insert/move/renumber/replace/delete), and render back to PDF. Treats specs as structured documents with hierarchical anchors as primary navigation mechanism.
+
+**Status**: ✅ **Implemented** (workflow engine + CLI)
+
+**Document Types Supported**:
+- **Specs** (`docType: 'specs'`): Word-generated spec PDFs with hierarchical structure
+
+### Inputs
+
+**Analyze Input** (`SpecsPatchAnalyzeInput`):
+```typescript
+{
+  inputPdfPath: string;
+  customSectionPattern?: string;  // Optional custom regex for section ID detection
+  options?: {
+    verbose?: boolean;
+    jsonOutputDir?: string;  // Directory for AST JSON output
+  };
+}
+```
+
+**Execute Input** (`SpecsPatchExecuteInput`):
+```typescript
+{
+  inputPdfPath: string;
+  outputPdfPath: string;
+  patchPath?: string;  // Path to patch JSON file
+  patch?: SpecPatch;   // Inline patch (alternative to patchPath)
+  options?: {
+    verbose?: boolean;
+    reportPath?: string;  // Path for audit trail JSON
+    jsonOutputPath?: string;  // Path for AST JSON output
+  };
+  analyzed?: {
+    ast?: SpecDoc;  // Extracted AST from analyze()
+  };
+  corrections?: CorrectionOverlay;  // Contains patches
+}
+```
+
+### Analyze Outputs
+
+**Inventory Result** (`InventoryResult`):
+- **Rows**: One row per node extracted from PDF
+  - `id`: Stable identifier (format: `${source}:${pageIndex}:${nodeId}`)
+  - `anchor`: Hierarchical anchor (e.g., "2.4-T.5.b.1") or null if not found
+  - `page`: Page number (1-based)
+  - `status`: `'ok'`, `'warning'`, or `'error'`
+  - `confidence`: Extraction confidence (0.0 to 1.0)
+  - `nodeType`: Node type (`'heading'`, `'paragraph'`, `'list-item'`, etc.)
+  - `level`: Indentation level
+  - `textPreview`: First 100 chars of text
+
+- **Issues**: Extraction problems
+  - `NO_SECTION_HEADER`: No section headers detected
+  - `ANCHOR_REQUIRED`: Node missing anchor (blocking for patchability)
+  - `DUPLICATE_ANCHOR`: Duplicate anchor found within section (blocking)
+  - `AMBIGUOUS_ANCHOR`: Multiple anchor candidates (requires disambiguation)
+  - `NUMBERING_BREAK`: Numbering sequence breaks
+  - `SCANNED_PDF`: PDF appears to be scanned (no text layer)
+
+- **Summary**: Statistics
+  - `totalRows`: Total nodes extracted
+  - `rowsWithIds`: Nodes with anchors
+  - `rowsWithoutIds`: Nodes without anchors
+  - `sectionsExtracted`: Number of sections detected
+  - `nodesExtracted`: Total nodes extracted
+
+- **Meta**: Workflow metadata
+  - `specDoc`: Complete SpecDoc AST
+  - `bookmarkTree`: BookmarkAnchorTree for bookmarks pipeline integration
+
+### Corrections Supported
+
+1. **Patch Operations**: Apply patch operations via `CorrectionOverlay.patches` or `patchPath`
+   - Operations: `insert`, `move`, `renumber`, `replace`, `delete`
+   - All operations require target anchors to be non-null (validation fails otherwise)
+   - Disambiguation: Provide `sectionId` or `mustMatchText` if anchor is ambiguous
+
+2. **Ignore Rows**: Exclude nodes from processing
+   - Key: `ignoredRowIds: string[]` (array of stable `row.id` values)
+   - Effect: Rows remain visible but excluded from summary counts
+
+**Example CorrectionOverlay**:
+```json
+{
+  "patches": [
+    {
+      "op": "insert",
+      "targetAnchor": "2.4-T.5.b.1",
+      "position": "after",
+      "content": {
+        "type": "list-item",
+        "text": "New requirement text",
+        "level": 2
+      }
+    }
+  ]
+}
+```
+
+### Execute Outputs
+
+**Execute Result** (`ExecuteResult`):
+- **Outputs**: File paths
+  - `outputPdfPath`: Path to rendered PDF
+  - `astJsonPath`: Path to AST JSON (if `jsonOutputPath` provided)
+  - `reportPath`: Path to audit trail JSON (if `reportPath` provided)
+
+- **Summary**: Execution statistics
+  - `success`: `true`
+  - `sectionsExtracted`: Number of sections extracted
+  - `nodesExtracted`: Number of nodes extracted
+  - `patchesApplied`: Number of patch operations applied
+  - `pagesRendered`: Number of pages in output PDF
+  - `issuesCount`: Number of issues detected
+
+- **Warnings**: Array of warning messages (if any)
+- **Errors**: Array of error messages (if any)
+
+### Implementation Details
+
+- **Workflow Runner**: `createSpecsPatchWorkflowRunner()`
+- **Implementation**: `workflows/specs-patch/specsPatchWorkflow.ts`
+- **CLI Command**: `specs-patch`
+- **Rendering**: HTML/CSS → PDF via Playwright
+
+### Patch Language
+
+Patch operations are defined in JSON format:
+
+```json
+{
+  "meta": {
+    "version": "1.0",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "description": "Add new requirement"
+  },
+  "operations": [
+    {
+      "op": "insert",
+      "targetAnchor": "2.4-T.5.b.1",
+      "position": "after",
+      "content": {
+        "type": "list-item",
+        "text": "New requirement",
+        "level": 2
+      }
+    }
+  ]
+}
+```
+
+**Operation Types**:
+- `insert`: Insert new node before/after/child of target anchor
+- `move`: Move node(s) to new position
+- `renumber`: Renumber list items starting from anchor
+- `replace`: Replace text content of node
+- `delete`: Delete node(s) by anchor
 
 ---
 
@@ -266,9 +538,10 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 | Workflow | Engine | CLI | GUI | Status |
 |----------|--------|-----|-----|--------|
 | Update Documents (merge) | ✅ | ✅ | ✅ | Fully implemented |
+| Specs Patch | ✅ | ✅ | ❌ | Engine + CLI implemented |
 | Split Set | ❌ | ✅ | ❌ | CLI only (legacy API) |
 | Assemble Set | ❌ | ✅ | ❌ | CLI only (legacy API) |
-| Fix Bookmarks | ❌ | ❌ | ❌ | Not implemented |
+| Fix Bookmarks | ✅ | ✅ | ❌ | Engine + CLI implemented |
 
 ---
 
