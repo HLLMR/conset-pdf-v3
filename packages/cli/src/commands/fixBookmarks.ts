@@ -215,7 +215,7 @@ export function fixBookmarksCommand(program: Command) {
           } else {
             console.error('Bookmark writing completed with issues');
             if (result.warnings) {
-              result.warnings.forEach(warning => console.error(`  ⚠️  ${warning}`));
+              result.warnings.forEach((warning: string) => console.error(`  ⚠️  ${warning}`));
             }
             process.exit(1);
           }

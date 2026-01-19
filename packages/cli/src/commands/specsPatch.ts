@@ -109,13 +109,13 @@ export function specsPatchCommand(program: Command) {
           // Print warnings if any
           if (result.warnings && result.warnings.length > 0) {
             console.log('\nWarnings:');
-            result.warnings.forEach((w) => console.log(`  ⚠️  ${w}`));
+            result.warnings.forEach((w: string) => console.log(`  ⚠️  ${w}`));
           }
 
           // Print errors if any
           if (result.errors && result.errors.length > 0) {
             console.error('\nErrors:');
-            result.errors.forEach((e) => console.error(`  ❌ ${e}`));
+            result.errors.forEach((e: string) => console.error(`  ❌ ${e}`));
             process.exit(2);
           }
 

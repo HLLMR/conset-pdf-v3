@@ -155,7 +155,7 @@ export function mergeAddendaCommand(program: Command) {
           // Print warnings if any
           if (result.warnings && result.warnings.length > 0) {
             console.log('\nWarnings:');
-            result.warnings.forEach((w) => console.log(`  ⚠️  ${w}`));
+            result.warnings.forEach((w: string) => console.log(`  ⚠️  ${w}`));
           }
 
           // Check for strict mode violations (from execute result summary)

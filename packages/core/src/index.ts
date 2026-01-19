@@ -116,6 +116,19 @@ export {
   createBookmarksWorkflowRunner,
 } from './workflows/index.js';
 
+// Explicitly re-export workflow types for better TypeScript compatibility
+export type {
+  InventoryResult,
+  CorrectionOverlay,
+  ExecuteResult,
+  MergeAnalyzeInput,
+  MergeExecuteInput,
+  SpecsPatchAnalyzeInput,
+  SpecsPatchExecuteInput,
+  BookmarksAnalyzeInput,
+  BookmarksExecuteInput,
+} from './workflows/index.js';
+
 // Export narrative processing
 export * from './narrative/index.js';
 
