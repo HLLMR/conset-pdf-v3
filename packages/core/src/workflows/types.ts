@@ -13,7 +13,7 @@ import type {
 /**
  * Workflow identifier
  */
-export type WorkflowId = 'merge' | 'split' | 'assemble' | 'bookmark';
+export type WorkflowId = 'merge' | 'split' | 'assemble' | 'bookmark' | 'specs-patch' | 'fix-bookmarks';
 
 /**
  * Issue severity level
@@ -156,6 +156,10 @@ export interface CorrectionOverlay {
   };
   /** Notes */
   notes?: string;
+  /** Patch operations (for specs-patch workflow) */
+  patches?: unknown[]; // Will be SpecPatchOperation[] once types are imported
+  /** Patch file path (alternative to inline patches) */
+  patchPath?: string;
 }
 
 /**

@@ -112,6 +112,8 @@ export type * from './workflows/index.js';
 export {
   createWorkflowRunner,
   createMergeWorkflowRunner,
+  createSpecsPatchWorkflowRunner,
+  createBookmarksWorkflowRunner,
 } from './workflows/index.js';
 
 // Export narrative processing
@@ -119,3 +121,10 @@ export * from './narrative/index.js';
 
 // Export standards module
 export * from './standards/index.js';
+
+// Export bookmark profiles
+export type {
+  BookmarkProfileId,
+  BookmarkStyleOptions,
+  ResolvedBookmarkStyleOptions,
+} from './bookmarks/profiles/types.js';

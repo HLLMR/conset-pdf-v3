@@ -19,6 +19,30 @@ This document provides a comprehensive view of what's complete, what's in progre
 
 ## ✅ Fully Complete
 
+### Specs Patch Workflow
+
+**Status**: ✅ **100% Complete** (Engine + CLI)
+
+**What's Done**:
+- Complete workflow engine implementation (`workflows/specs-patch/specsPatchWorkflow.ts`)
+- CLI command: `specs-patch` with full options
+- **Extraction**: Section detection, text extraction, anchor detection, list item detection, hierarchy building
+- **AST Model**: Structured SpecDoc with SpecSection and SpecNode types
+- **Patch Operations**: Insert, move, renumber, replace, delete operations with validation
+- **Rendering**: HTML/CSS → PDF via Playwright (deterministic, cross-viewer compatible)
+- **Bookmark Integration**: BookmarkAnchorTree generation for future bookmarks pipeline
+- Dry-run mode with inventory JSON output
+- AST JSON output option
+- Audit trail report generation
+
+**Files**:
+- `packages/core/src/workflows/specs-patch/specsPatchWorkflow.ts`
+- `packages/core/src/workflows/specs-patch/types.ts`
+- `packages/core/src/specs/` (complete module: AST types, extraction, patching, rendering)
+- `packages/cli/src/commands/specsPatch.ts`
+
+**Documentation**: Fully documented in `docs/WORKFLOWS.md`, `docs/CLI.md`, `docs/ARCHITECTURE.md`
+
 ### Update Documents (Merge) Workflow
 
 **Status**: ✅ **100% Complete** (Engine + CLI + GUI)
@@ -42,6 +66,32 @@ This document provides a comprehensive view of what's complete, what's in progre
 - `conset-pdf-gui/src/merge-wizard.js`
 
 **Documentation**: Fully documented in `docs/WORKFLOWS.md`, `docs/CLI.md`, `docs/PUBLIC_API.md`
+
+### Fix Bookmarks Workflow
+
+**Status**: ✅ **100% Complete** (Engine + CLI)
+
+**What's Done**:
+- Complete workflow engine implementation (`workflows/bookmarks/bookmarksWorkflow.ts`)
+- CLI command: `fix-bookmarks` with full options
+- **Bookmark Reading**: Extract bookmarks from PDF via `DocumentContext`
+- **Bookmark Validation**: Validate destinations, detect issues (orphans, invalid destinations, duplicates)
+- **Tree Building**: Build bookmark tree from `BookmarkAnchorTree` (Specs Pipeline) or sheet/section inventory
+- **Corrections**: Support rename, reorder, delete, retarget, rebuild operations
+- **Deterministic Sidecar Writer**: Python sidecar using `pikepdf` (QPDF) for cross-viewer compatibility
+- Dry-run mode with inventory JSON output
+- Bookmark tree JSON output option
+- Audit trail report generation
+- Post-write validation (re-read and compare)
+
+**Files**:
+- `packages/core/src/workflows/bookmarks/bookmarksWorkflow.ts`
+- `packages/core/src/workflows/bookmarks/types.ts`
+- `packages/core/src/bookmarks/` (complete module: reader, validator, treeBuilder, corrections, pikepdfBookmarkWriter)
+- `packages/core/src/bookmarks/sidecar/bookmark-writer.py`
+- `packages/cli/src/commands/fixBookmarks.ts`
+
+**Documentation**: Fully documented in `docs/WORKFLOWS.md`, `docs/CLI.md`, `docs/ARCHITECTURE.md`
 
 ### Standards Module (UCS/CSI)
 
@@ -194,28 +244,7 @@ This document provides a comprehensive view of what's complete, what's in progre
 
 ## ❌ Not Started
 
-### Fix Bookmarks Workflow
-
-**Status**: ❌ **Not Implemented** (Utilities exist, workflow not started)
-
-**What Exists**:
-- ✅ Bookmark writing utilities (`utils/pdfLibBookmarkWriter.ts`, `utils/bookmarkWriter.ts`)
-- ✅ Bookmark regeneration option in merge workflow (uses existing bookmarks)
-
-**What's Missing**:
-- ❌ Workflow engine implementation
-- ❌ CLI command
-- ❌ GUI wizard (placeholder exists)
-- ❌ Bookmark reading/analysis
-- ❌ Bookmark validation (orphans, invalid destinations)
-- ❌ Bookmark correction support
-
-**Files**:
-- `packages/core/src/utils/pdfLibBookmarkWriter.ts` ✅ (utility only)
-- `packages/core/src/utils/bookmarkWriter.ts` ✅ (interface)
-- `conset-pdf-gui/src/placeholder-wizard.js` ⚠️ (placeholder UI)
-
-**Planned Implementation**: See "Future Work" section below.
+(No workflows currently in "Not Started" status)
 
 ---
 
@@ -355,91 +384,26 @@ The narrative module already exists with stable types:
 
 ### Priority 2: Fix Bookmarks Workflow
 
-**Goal**: Regenerate PDF bookmarks from detected sheet IDs and titles.
+**Status**: ✅ **Complete** (All commits implemented)
 
-#### Commit C1 — Scaffold Fix Bookmarks Workflow
+**Implementation Summary**:
+- ✅ Workflow engine implementation (`workflows/bookmarks/bookmarksWorkflow.ts`)
+- ✅ Bookmark reading and validation (`bookmarks/reader.ts`, `bookmarks/validator.ts`)
+- ✅ Tree building from `BookmarkAnchorTree` or inventory (`bookmarks/treeBuilder.ts`)
+- ✅ Correction application (`bookmarks/corrections.ts`)
+- ✅ Deterministic sidecar writer (`bookmarks/pikepdfBookmarkWriter.ts`, `bookmarks/sidecar/bookmark-writer.py`)
+- ✅ CLI command (`cli/src/commands/fixBookmarks.ts`)
 
-**Status**: ❌ **Not Started**
-
-**Implementation**:
-- Create `workflows/bookmark/bookmarkWorkflow.ts`
-- Implement `WorkflowImpl` interface:
-  - `analyze(input)`: Read existing bookmarks, validate destinations
-  - `applyCorrections()`: Support rename, reorder, delete/add nodes, update destinations
-  - `execute()`: Write changes
-
-**Input Types**:
-```typescript
-interface BookmarkAnalyzeInput {
-  pdfPath: string;
-  docType: 'drawings' | 'specs';
-  profile?: LayoutProfile;  // For detection if bookmarks missing
-}
-
-interface BookmarkExecuteInput {
-  pdfPath: string;
-  outputPdfPath: string;
-  corrections?: CorrectionOverlay;  // Bookmark-specific corrections
-}
-```
-
-**Inventory Model**:
-- Bookmark tree with stable IDs (same idea: stable uid per node)
-- Each node: `id`, `title`, `pageIndex`, `parentId`, `children[]`
-
-**Files to Create**:
-- `packages/core/src/workflows/bookmark/bookmarkWorkflow.ts`
-- `packages/core/src/workflows/bookmark/types.ts`
-- `packages/core/src/workflows/bookmark/index.ts`
-
-#### Commit C2 — Read Bookmarks + Validate Destinations
-
-**Status**: ❌ **Not Started**
-
-**Implementation**:
-- Use PDF.js or pdf-lib to read existing outline/bookmarks
-- Validate destinations (page targets)
-- Detect issues:
-  - Orphan bookmarks (invalid destinations)
-  - Duplicates
-  - Weird ordering
-  - Missing top-level entries
-
-**Files to Create/Modify**:
-- `packages/core/src/utils/bookmarkReader.ts` (new)
-- `packages/core/src/workflows/bookmark/bookmarkWorkflow.ts` (analyze implementation)
-
-#### Commit C3 — Write Bookmarks
-
-**Status**: ⚠️ **Partial** (utilities exist)
-
-**What Exists**:
-- `PdfLibBookmarkWriter` class
-- `BookmarkWriter` interface
-
-**What's Needed**:
-- Integration into workflow `execute()`
-- Generate bookmarks from detected sheet IDs if missing
-- Apply corrections (rename, reorder, etc.)
-
-**Files to Modify**:
-- `packages/core/src/workflows/bookmark/bookmarkWorkflow.ts` (execute implementation)
-
-#### Commit C4 — CLI Command
-
-**Status**: ❌ **Not Started**
-
-**Command**: `conset-pdf fix-bookmarks`
-
-**Options**:
-- `--input <path>`: Input PDF
-- `--output <path>`: Output PDF
-- `--type <drawings|specs>`: Document type
-- `--layout <path>`: Layout profile (for detection if bookmarks missing)
-- `--dry-run`: Preview only
-
-**Files to Create**:
-- `packages/cli/src/commands/fixBookmarks.ts`
+**Files Created**:
+- `packages/core/src/workflows/bookmarks/bookmarksWorkflow.ts` ✅
+- `packages/core/src/workflows/bookmarks/types.ts` ✅
+- `packages/core/src/bookmarks/reader.ts` ✅
+- `packages/core/src/bookmarks/validator.ts` ✅
+- `packages/core/src/bookmarks/treeBuilder.ts` ✅
+- `packages/core/src/bookmarks/corrections.ts` ✅
+- `packages/core/src/bookmarks/pikepdfBookmarkWriter.ts` ✅
+- `packages/core/src/bookmarks/sidecar/bookmark-writer.py` ✅
+- `packages/cli/src/commands/fixBookmarks.ts` ✅
 
 ---
 
@@ -649,11 +613,12 @@ interface AssembleExecuteInput {
 
 | Feature | Core Engine | CLI | GUI | Status |
 |---------|-------------|-----|-----|--------|
+| **Specs Patch** | ✅ | ✅ | ❌ | Complete (Engine + CLI) |
 | **Update Documents (Merge)** | ✅ | ✅ | ✅ | Complete |
 | **Standards (UCS/CSI)** | ✅ | ✅ | ✅ | Complete |
 | **Narrative Extraction** | ✅ | ✅ | ⚠️ | Complete (GUI integration pending) |
 | **Narrative Validation** | ✅ | ✅ | ⚠️ | Complete (GUI integration pending) |
-| **Fix Bookmarks** | ❌ | ❌ | ⚠️ | Not started |
+| **Fix Bookmarks** | ✅ | ✅ | ❌ | Complete (Engine + CLI) |
 | **Extract Documents (Split)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
 | **Build Package (Assemble)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
 
@@ -666,12 +631,7 @@ interface AssembleExecuteInput {
 
 ## Next Steps (Recommended Order)
 
-1. **Fix Bookmarks** (Priority 1, Commits C1-C4)
-   - Utilities already exist
-   - Straightforward workflow implementation
-   - High user value
-
-2. **Extract Documents** (Priority 2, Commits D1-D4)
+1. **Extract Documents** (Priority 1, Commits D1-D4)
    - Reuse detection logic from merge
    - Domain-correct slicing
 

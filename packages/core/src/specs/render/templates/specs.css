@@ -1,0 +1,95 @@
+/**
+ * CSS template for specs PDF rendering
+ * 
+ * Versioned, deterministic CSS for spec document formatting.
+ */
+
+@page {
+  size: letter;
+  margin: 1in;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+}
+
+.spec-section {
+  page-break-before: always;
+  margin-bottom: 12pt;
+}
+
+.spec-section:first-child {
+  page-break-before: auto;
+}
+
+.spec-section-header {
+  font-weight: bold;
+  font-size: 14pt;
+  margin-top: 0;
+  margin-bottom: 12pt;
+}
+
+.spec-heading {
+  font-weight: bold;
+  font-size: 12pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+}
+
+.spec-paragraph {
+  margin-bottom: 6pt;
+  text-indent: 0;
+}
+
+.spec-list-item {
+  margin-bottom: 3pt;
+  display: flex;
+}
+
+.list-marker {
+  margin-right: 6pt;
+  font-weight: normal;
+}
+
+.list-text {
+  flex: 1;
+}
+
+/* Hanging indent for list items */
+.spec-list-item.level-0 {
+  padding-left: 18pt;
+  text-indent: -18pt;
+}
+
+.spec-list-item.level-1 {
+  padding-left: 36pt;
+  text-indent: -18pt;
+}
+
+.spec-list-item.level-2 {
+  padding-left: 54pt;
+  text-indent: -18pt;
+}
+
+.spec-list-item.level-3 {
+  padding-left: 72pt;
+  text-indent: -18pt;
+}
+
+.spec-table-placeholder {
+  margin-bottom: 6pt;
+  padding: 6pt;
+  border: 1px dashed #ccc;
+  font-style: italic;
+  color: #666;
+}
+
+.spec-section-break {
+  margin: 12pt 0;
+  border: none;
+  border-top: 1px solid #ccc;
+}

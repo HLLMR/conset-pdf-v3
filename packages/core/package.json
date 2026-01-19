@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.4.530"
+    "pdfjs-dist": "^5.4.530",
+    "playwright": "^1.40.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.29",

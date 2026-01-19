@@ -40,3 +40,19 @@ export {
   type MergeAnalyzeInput,
   type MergeExecuteInput,
 } from './merge/index.js';
+
+// Export specs-patch workflow
+export {
+  createSpecsPatchWorkflowRunner,
+  specsPatchWorkflowImpl,
+  type SpecsPatchAnalyzeInput,
+  type SpecsPatchExecuteInput,
+} from './specs-patch/index.js';
+
+// Export bookmarks workflow
+export {
+  createBookmarksWorkflowRunner,
+  bookmarksWorkflowImpl,
+  type BookmarksAnalyzeInput,
+  type BookmarksExecuteInput,
+} from './bookmarks/index.js';

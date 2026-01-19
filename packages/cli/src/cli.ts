@@ -5,6 +5,8 @@ import { mergeAddendaCommand } from './commands/mergeAddenda.js';
 import { splitSetCommand } from './commands/splitSet.js';
 import { assembleSetCommand } from './commands/assembleSet.js';
 import { detectCommand } from './commands/detect.js';
+import { specsPatchCommand } from './commands/specsPatch.js';
+import { fixBookmarksCommand } from './commands/fixBookmarks.js';
 
 const program = new Command();
 
@@ -18,6 +20,8 @@ mergeAddendaCommand(program);
 splitSetCommand(program);
 assembleSetCommand(program);
 detectCommand(program);
+specsPatchCommand(program);
+fixBookmarksCommand(program);
 
 // Parse arguments
 program.parse();

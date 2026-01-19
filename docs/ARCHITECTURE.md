@@ -24,11 +24,24 @@ packages/core/src/
 │   ├── types.ts      # Core workflow types (InventoryResult, CorrectionOverlay, etc.)
 │   ├── engine.ts     # WorkflowRunner factory
 │   ├── merge/         # Merge workflow implementation
+│   ├── specs-patch/   # Specs patch workflow implementation
+│   ├── bookmarks/     # Bookmarks workflow implementation
 │   └── mappers/       # Mapping from legacy structures to workflow types
-└── utils/            # Utilities (bookmarks, PDF helpers, sorting)
-    ├── bookmarks.ts
-    ├── bookmarkWriter.ts
-    ├── pdfLibBookmarkWriter.ts
+├── bookmarks/        # Bookmarks pipeline module
+│   ├── types.ts      # BookmarkNode, BookmarkDestination, BookmarkTree types
+│   ├── reader.ts     # Read bookmarks from PDF
+│   ├── validator.ts  # Validate bookmark destinations
+│   ├── treeBuilder.ts # Build bookmark tree from BookmarkAnchorTree or inventory
+│   ├── corrections.ts # Apply correction overlays
+│   ├── pikepdfBookmarkWriter.ts # Sidecar-based bookmark writer (primary)
+│   ├── sidecar/      # Python sidecar
+│   │   ├── bookmark-writer.py
+│   │   └── requirements.txt
+│   └── __spike__/    # Proof spike tests
+└── utils/            # Utilities (legacy bookmark helpers, PDF helpers, sorting)
+    ├── bookmarks.ts  # Legacy bookmark generation (deprecated for new workflows)
+    ├── bookmarkWriter.ts # Bookmark writing interface
+    ├── pdfLibBookmarkWriter.ts # pdf-lib implementation (development/testing only)
     ├── pdf.ts
     ├── fs.ts
     └── sort.ts
@@ -78,9 +91,17 @@ packages/core/src/
   - `analyze()`: Runs `planMerge(includeInventory: true)`, maps to `InventoryResult`
   - `applyCorrections()`: Re-analyzes and applies corrections overlay (ignored rows, ID overrides)
   - `execute()`: Runs `mergeAddenda()`, returns `ExecuteResult`
+- **`specs-patch/specsPatchWorkflow.ts`**: Specs patch workflow implementation
+  - `analyze()`: Extracts spec PDF to structured AST, detects sections/anchors/list items, builds hierarchy
+  - `applyCorrections()`: Re-analyzes and applies patch operations from `CorrectionOverlay`
+  - `execute()`: Renders corrected AST to PDF via HTML/CSS → Playwright
+- **`bookmarks/bookmarksWorkflow.ts`**: Bookmarks workflow implementation
+  - `analyze()`: Reads existing bookmarks, validates destinations, builds tree from `BookmarkAnchorTree` or inventory
+  - `applyCorrections()`: Re-analyzes and applies bookmark corrections (rename, reorder, delete, retarget, rebuild)
+  - `execute()`: Writes bookmarks to PDF via Python sidecar (pikepdf/QPDF), validates post-write
 - **`mappers/merge.ts`**: Maps `ParseResult.inventory` → `InventoryRowBase[]`, `MergePlan` → `InventoryResult.summary`
 
-**Rule**: Workflow engine is canonical for merge operations. CLI and GUI route through `createMergeWorkflowRunner()`.
+**Rule**: Workflow engine is canonical for all operations. CLI and GUI route through workflow runners.
 
 ### Locators (`locators/`)
 
@@ -143,6 +164,29 @@ packages/core/src/
 
 **Rule**: Standards module is pure (no IO, no side effects). All functions are deterministic.
 
+### Specs (`specs/`)
+
+**Purpose**: Specs PDF extraction, patching, and rendering
+
+- **`ast/types.ts`**: SpecDoc AST types (`SpecDoc`, `SpecSection`, `SpecNode`, `BookmarkAnchorTree`)
+- **`extract/`**: Extraction components
+  - `sectionDetector.ts`: Section header detection using `SpecsSectionLocator`
+  - `textExtractor.ts`: Text extraction and node creation
+  - `anchorDetector.ts`: Hierarchical anchor detection
+  - `listDetector.ts`: List item detection and numbering validation
+  - `hierarchyBuilder.ts`: Hierarchy building from indentation
+  - `bookmarkTreeGenerator.ts`: Generate `BookmarkAnchorTree` from AST
+- **`patch/`**: Patch operations
+  - `types.ts`: Patch operation types (`SpecPatch`, `SpecPatchOperation`, etc.)
+  - `validator.ts`: Patch validation (target exists, anchors non-null, disambiguation)
+  - `apply.ts`: Patch application (insert, delete, move, renumber, replace)
+- **`render/`**: PDF rendering
+  - `htmlGenerator.ts`: AST → HTML generator
+  - `pdfRenderer.ts`: HTML → PDF renderer (Playwright)
+  - `templates/specs.css`: CSS template for spec formatting
+
+**Rule**: Specs pipeline treats specs as structured documents with hierarchical anchors as primary navigation mechanism.
+
 ### Narrative (`narrative/`)
 
 **Purpose**: Extract, parse, and validate instructions from narrative PDFs (advisory analysis)
@@ -183,13 +227,35 @@ packages/core/src/
 
 **Purpose**: Utilities
 
-- **`bookmarks.ts`**: Bookmark generation
+- **`bookmarks.ts`**: Bookmark generation (legacy)
 - **`bookmarkWriter.ts`**: Bookmark writing interface
-- **`pdfLibBookmarkWriter.ts`**: pdf-lib implementation of bookmark writer (used by `applyPlan.ts`)
+- **`pdfLibBookmarkWriter.ts`**: pdf-lib implementation of bookmark writer (development/testing only, not primary writer)
+- **`bookmarks/`**: Bookmarks pipeline module
+  - **`types.ts`**: Bookmark data models (BookmarkNode, BookmarkDestination, BookmarkTree)
+  - **`reader.ts`**: Read bookmarks from PDF via DocumentContext
+  - **`validator.ts`**: Validate bookmark destinations
+  - **`treeBuilder.ts`**: Build bookmark tree from BookmarkAnchorTree or inventory
+  - **`corrections.ts`**: Apply correction overlays
+  - **`pikepdfBookmarkWriter.ts`**: Sidecar-based bookmark writer (primary implementation)
+  - **`sidecar/bookmark-writer.py`**: Python script for bookmark writing via pikepdf/QPDF
 - **`pdf.ts`**: PDF helpers (legacy fallback)
 - **`fs.ts`**: File system helpers (`fileExists`, `writeJson`)
 - **`sort.ts`**: Natural sort comparator for construction document IDs
   - Handles mixed alphanumeric strings like "M1-01A", "E2.101", "23 09 00"
+
+#### Bookmark Writing Strategy
+
+**Current State (Legacy)**:
+- `pdfLibBookmarkWriter.ts` is used by merge workflow (`applyPlan.ts`) for bookmark writing
+- pdf-lib bookmark support is limited and may have cross-viewer compatibility issues
+
+**Bookmarks Pipeline (Fix Bookmarks Workflow)**:
+- Uses **sidecar-first strategy** with pikepdf/QPDF for cross-viewer reliability
+- `PikepdfBookmarkWriter` is the primary bookmark writer implementation
+- Python sidecar (`bookmark-writer.py`) handles bookmark writing via pikepdf
+- Sidecar approach ensures bookmarks work consistently across PDF viewers (PDF-XChange, Bluebeam, Foxit, browsers, Adobe)
+- Supports `BookmarkAnchorTree` from Specs Pipeline and inventory-based fallback
+- Legacy pdf-lib writer will remain for backward compatibility with merge workflow, but new bookmark operations will prefer the sidecar writer
   - Tokenizes strings into alternating alpha and numeric segments
 
 ## Intentional `any` Policy
@@ -385,9 +451,16 @@ interface InventoryRowBase {
 ```
 
 **Invariants**:
-- `row.id` is stable: format `${source}:${pageIndex}:${idPart}`, never changes when corrections applied
+- `row.id` MUST be stable across re-analysis within a workflow (never changes when corrections applied)
+- `row.id` format varies by workflow type:
+  - **Page-based workflows** (e.g., merge): `${source}:${pageIndex}:${idPart}` where `pageIndex` is stable
+  - **Node/anchor-based workflows** (e.g., specs-patch): `${source}:${anchorOrPath}` or `${source}:${idPart}` where `idPart` is stable and independent of page numbers
 - `row.normalizedId` (merge-specific): detected/overridden sheet ID, updated by corrections
 - Rows are keyed by `row.id` in corrections overlay
+
+**Examples**:
+- Merge workflow: `"original.pdf:5:sheet-A-101"` (page-based, page 5)
+- Specs-patch workflow: `"specs.pdf:section-23-09-00-5-node-0"` or `"specs.pdf:anchor-2.4-T.5.b.1"` (anchor/path-based, page may change after regeneration)
 
 ### Issue
 
@@ -604,7 +677,7 @@ export function myWorkflowCommand(program: Command) {
 ### Invariants to Maintain
 
 1. **Single-load PDF pipeline**: Use `DocumentContext`, never load PDFs directly
-2. **Stable row.id**: Format `${source}:${pageIndex}:${idPart}`, never changes
+2. **Stable row.id**: Must be stable across re-analysis within a workflow (format varies: page-based workflows use `${source}:${pageIndex}:${idPart}`, anchor-based workflows use `${source}:${anchorOrPath}` or similar)
 3. **Pure locators**: No IO, consume `PageContext` only
 4. **Analyze is dry-run**: Never write files in `analyze()`
 5. **Corrections keyed by row.id**: Use stable ID, not normalizedId
