@@ -42,7 +42,7 @@ export const specsPatchWorkflowImpl: WorkflowImpl<
     const docContext = new DocumentContext(inputPdfPath);
     await docContext.initialize();
     
-    // Detect sections
+    // Detect sections (three-phase grammar)
     const detectedSections = await detectSections(docContext, customSectionPattern);
     const sections = convertToSpecSections(detectedSections);
     

@@ -8,6 +8,7 @@ import { detectCommand } from './commands/detect.js';
 import { specsPatchCommand } from './commands/specsPatch.js';
 import { fixBookmarksCommand } from './commands/fixBookmarks.js';
 import { specsInventoryCommand } from './commands/specsInventory.js';
+import { debugWalkthroughCommand } from './commands/debugWalkthrough.js';
 
 const program = new Command();
 
@@ -24,6 +25,7 @@ detectCommand(program);
 specsPatchCommand(program);
 fixBookmarksCommand(program);
 specsInventoryCommand(program);
+debugWalkthroughCommand(program);
 
 // Parse arguments
 program.parse();

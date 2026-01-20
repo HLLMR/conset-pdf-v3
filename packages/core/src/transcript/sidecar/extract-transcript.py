@@ -69,10 +69,11 @@ def extract_transcript(pdf_path: Path, options: Dict[str, Any]) -> Dict:
                     
                     x0, y0, x1, y1 = bbox
                     
-                    # PyMuPDF uses bottom-left origin, convert to top-left visual space
-                    # Visual space: y=0 at top, y increases downward
-                    visual_y0 = height - y1
-                    visual_y1 = height - y0
+                    # PyMuPDF get_text("dict") returns bbox in top-left origin (y=0 at top, y increases downward)
+                    # So we use the coordinates directly without flipping
+                    # Visual space: y=0 at top, y increases downward (same as PyMuPDF)
+                    visual_y0 = y0  # Top of span (already in top-left origin)
+                    visual_y1 = y1  # Bottom of span (already in top-left origin)
                     
                     # Extract font information from span
                     font_name = span.get("font", "unknown")

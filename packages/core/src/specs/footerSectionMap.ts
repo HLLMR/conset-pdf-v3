@@ -8,6 +8,39 @@ import type { TextPage } from '../text/pageRegions.js';
 import type { DetectedPageRegions } from '../text/pageRegions.js';
 import type { TextItemWithPosition } from '../utils/pdf.js';
 import { sliceBand, STANDARD_BANDS, extractFooterText } from '../text/bandSlicer.js';
+import type { LayoutTranscript } from '../transcript/types.js';
+import type { CandidateReport } from '../transcript/candidates.js';
+import type { DocumentContext } from '../analyze/documentContext.js';
+
+/**
+ * FooterSectionMap type (stub for compilation)
+ * TODO: Implement full FooterSectionMap when ready to rewire footer tagging
+ */
+export interface FooterSectionMap {
+  footerBand: { yMin: number; yMax: number; confidence: number; pageCoverage: number };
+  tagsByPage: Array<{ pageIndex: number; sectionId?: string; pageInSection?: number; confidence: number; reasonCodes: string[]; footerLines: any[] }>;
+  ranges: Array<{ sectionId: string; startPage: number; endPage: number; pages: number[]; confidence: number; anomalies: string[] }>;
+  stats: { pagesTotal: number; pagesTagged: number; uniqueSections: number; pagesMissingFooter: number; pagesAmbiguous: number };
+}
+
+/**
+ * Build footer section map (stub for compilation)
+ * TODO: Implement using new parseFooterSectionId when ready
+ */
+export async function buildFooterSectionMap(
+  _transcript: LayoutTranscript,
+  _candidates?: CandidateReport,
+  _options?: any,
+  _docContext?: DocumentContext
+): Promise<FooterSectionMap> {
+  // Stub implementation - will be replaced when ready to rewire
+  return {
+    footerBand: { yMin: 0.92, yMax: 0.98, confidence: 0.5, pageCoverage: 0 },
+    tagsByPage: [],
+    ranges: [],
+    stats: { pagesTotal: 0, pagesTagged: 0, uniqueSections: 0, pagesMissingFooter: 0, pagesAmbiguous: 0 },
+  };
+}
 
 /**
  * Normalize footer text for parsing

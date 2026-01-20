@@ -145,6 +145,19 @@ export type {
 // Export spec inventory (footer-first sectionization)
 export * from './specs/inventory/index.js';
 
+// Export footer section map
+export * from './specs/footerSectionMap.js';
+export { validateFooterParsing } from './specs/footerValidation.js';
+export type { FooterValidationResult, FooterValidationCounters, FooterDebugOutput } from './specs/footerValidation.js';
+export { parseFooterSectionId } from './specs/footerSectionIdParser.js';
+
+// Export spec extraction functions
+export { detectSections, convertToSpecSections } from './specs/extract/sectionDetector.js';
+export { extractTextNodes } from './specs/extract/textExtractor.js';
+export { generateBookmarkTree } from './specs/extract/bookmarkTreeGenerator.js';
+export { buildTreeFromBookmarkAnchorTree } from './bookmarks/treeBuilder.js';
+export type { SpecDoc, SpecSection, SpecNode, BookmarkAnchorTree, BookmarkAnchor } from './specs/ast/types.js';
+
 // Export text utilities
 export { detectPageRegions } from './text/pageRegions.js';
 export type { TextPage, DetectedPageRegions } from './text/pageRegions.js';

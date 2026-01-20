@@ -10,6 +10,7 @@
  */
 
 import type { LayoutTranscript, LayoutSpan } from './types.js';
+import { ensureCanonicalBbox } from '../utils/bbox.js';
 
 /**
  * Candidate report with detected structural elements
@@ -56,18 +57,29 @@ export interface CandidateReport {
 }
 
 /**
+ * Options for candidate generation
+ */
+export interface CandidateGenerationOptions {
+  /** Threshold for excluding spans that overlap header/footer bands (0.0-1.0, default 0.8) */
+  chromeBandThreshold?: number;
+}
+
+/**
  * Generate candidates from transcript
  * 
  * @param transcript Layout transcript to analyze
+ * @param options Optional generation options
  * @returns Candidate report with detected structural elements
  */
 export function generateCandidates(
-  transcript: LayoutTranscript
+  transcript: LayoutTranscript,
+  options?: CandidateGenerationOptions
 ): CandidateReport {
   const headerBands = detectHeaderFooterBands(transcript, 'header');
   const footerBands = detectHeaderFooterBands(transcript, 'footer');
   const fontSizeClusters = detectFontSizeClusters(transcript);
-  const headingCandidates = detectHeadingCandidates(transcript);
+  const chromeBandThreshold = options?.chromeBandThreshold ?? 0.8;
+  const headingCandidates = detectHeadingCandidates(transcript, headerBands, footerBands, chromeBandThreshold);
   const columnHints = detectColumnHints(transcript);
   const tableCandidates = detectTableCandidates(transcript);
   
@@ -91,11 +103,16 @@ function detectHeaderFooterBands(
   const bands: Map<number, number[]> = new Map(); // y -> page indices
   
   // Collect Y coordinates from spans near top (header) or bottom (footer)
+  // Ensure canonical bbox (top-left origin, y-down)
   for (const page of transcript.pages) {
     const threshold = type === 'header' ? page.height * 0.15 : page.height * 0.85;
     
     for (const span of page.spans) {
-      const [, y0, , y1] = span.bbox;
+      // Ensure bbox is in canonical format (top-left origin, y-down)
+      const canonicalBbox = ensureCanonicalBbox(span.bbox, page.height);
+      const [, y0, , y1] = canonicalBbox;
+      // For header: use top (y0), for footer: use bottom (y1)
+      // In top-left origin: smaller Y = top, larger Y = bottom
       const spanY = type === 'header' ? y0 : y1;
       
       if (type === 'header' && spanY < threshold) {
@@ -171,23 +188,73 @@ function detectFontSizeClusters(
 }
 
 /**
+ * Check if a span overlaps with header/footer bands
+ */
+function isInChromeBand(
+  span: LayoutSpan,
+  pageIndex: number,
+  pageHeight: number,
+  headerBands: Array<{ y: number; confidence: number; pageIndices: number[] }>,
+  footerBands: Array<{ y: number; confidence: number; pageIndices: number[] }>,
+  threshold: number
+): boolean {
+  const [, y0, , y1] = span.bbox;
+  const spanCenterY = (y0 + y1) / 2;
+  
+  // Check header bands
+  for (const band of headerBands) {
+    if (band.confidence >= threshold && band.pageIndices.includes(pageIndex)) {
+      // Consider header band as top 15% of page, with some tolerance
+      const headerThreshold = pageHeight * 0.15;
+      if (spanCenterY < headerThreshold + 20) { // 20pt tolerance
+        return true;
+      }
+    }
+  }
+  
+  // Check footer bands
+  for (const band of footerBands) {
+    if (band.confidence >= threshold && band.pageIndices.includes(pageIndex)) {
+      // Consider footer band as bottom 15% of page, with some tolerance
+      const footerThreshold = pageHeight * 0.85;
+      if (spanCenterY > footerThreshold - 20) { // 20pt tolerance
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Detect heading candidates using regex patterns
+ * Excludes spans that overlap header/footer bands and rejects SECTION matches in bottom 25% of page
  */
 function detectHeadingCandidates(
-  transcript: LayoutTranscript
+  transcript: LayoutTranscript,
+  headerBands: Array<{ y: number; confidence: number; pageIndices: number[] }>,
+  footerBands: Array<{ y: number; confidence: number; pageIndices: number[] }>,
+  chromeBandThreshold: number
 ): Array<{ span: LayoutSpan; pageIndex: number; level: number; confidence: number }> {
   const candidates: Array<{ span: LayoutSpan; pageIndex: number; level: number; confidence: number }> = [];
   
   // Heading patterns (common spec/drawing heading formats)
+  // Updated SECTION pattern to require literal SECTION at start with strict format: ^SECTION\s+\d{2}\s+\d{2}\s+\d{2}\b
   const headingPatterns = [
-    { pattern: /^SECTION\s+\d+/i, level: 1, confidence: 0.9 },
-    { pattern: /^PART\s+\d+/i, level: 1, confidence: 0.9 },
-    { pattern: /^\d+\.\d+\s+[A-Z]/, level: 2, confidence: 0.8 }, // "2.4 TITLE"
-    { pattern: /^\d+\.\d+\.\d+\s+[A-Z]/, level: 3, confidence: 0.7 }, // "2.4.1 TITLE"
-    { pattern: /^[A-Z][A-Z0-9\s]{2,}$/, level: 2, confidence: 0.6 }, // ALL CAPS
+    { pattern: /^SECTION\s+\d{2}\s+\d{2}\s+\d{2}\b/i, level: 1, confidence: 0.9, isSection: true },
+    { pattern: /^PART\s+\d+/i, level: 1, confidence: 0.9, isSection: false },
+    { pattern: /^\d+\.\d+\s+[A-Z]/, level: 2, confidence: 0.8, isSection: false }, // "2.4 TITLE"
+    { pattern: /^\d+\.\d+\.\d+\s+[A-Z]/, level: 3, confidence: 0.7, isSection: false }, // "2.4.1 TITLE"
+    { pattern: /^[A-Z][A-Z0-9\s]{2,}$/, level: 2, confidence: 0.6, isSection: false }, // ALL CAPS
   ];
   
   for (const page of transcript.pages) {
+    // Calculate usable page height (excluding chrome bands)
+    const headerThreshold = page.height * 0.15;
+    const footerThreshold = page.height * 0.85;
+    const usableHeight = footerThreshold - headerThreshold;
+    const bottom25Threshold = headerThreshold + (usableHeight * 0.75); // Bottom 25% of usable area
+    
     for (const span of page.spans) {
       const text = span.text.trim();
       
@@ -199,9 +266,37 @@ function detectHeadingCandidates(
         continue;
       }
       
+      // Exclude spans that overlap header/footer bands
+      if (isInChromeBand(span, page.pageIndex, page.height, headerBands, footerBands, chromeBandThreshold)) {
+        continue;
+      }
+      
       // Match against heading patterns
-      for (const { pattern, level, confidence: baseConfidence } of headingPatterns) {
+      for (const { pattern, level, confidence: baseConfidence, isSection } of headingPatterns) {
         if (pattern.test(text)) {
+          // For SECTION patterns, apply additional validation
+          if (isSection) {
+            const [, y0, , y1] = span.bbox;
+            const spanCenterY = (y0 + y1) / 2;
+            
+            // Reject if in chrome band (already checked above, but double-check)
+            if (isInChromeBand(span, page.pageIndex, page.height, headerBands, footerBands, chromeBandThreshold)) {
+              continue;
+            }
+            
+            // Reject if y is in bottom 25% of page usable height
+            if (spanCenterY > bottom25Threshold) {
+              continue;
+            }
+            
+            // Negative match: reject Division 01 references
+            // Check if text contains "01" as a division reference (not a section)
+            const division01Pattern = /\b(?:DIVISION|DIV)\s+01\b/i;
+            if (division01Pattern.test(text)) {
+              continue;
+            }
+          }
+          
           // Boost confidence if bold or large font
           let confidence = baseConfidence;
           if (isBold) confidence += 0.1;

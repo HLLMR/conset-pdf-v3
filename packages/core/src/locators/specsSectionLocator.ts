@@ -24,7 +24,11 @@ export class SpecsSectionLocator implements SheetLocator {
     const pageText = page.getText();
     
     // Use legacy detection function (quarantined behind locator)
-    const parsed = getBestSpecsSectionId(pageText, page.pageIndex, this.customPattern);
+    // Enable strict SECTION format and reject Division 01
+    const parsed = getBestSpecsSectionId(pageText, page.pageIndex, this.customPattern, {
+      rejectDivision01: true,
+      strictSection: true,
+    });
     
     if (!parsed) {
       return {
