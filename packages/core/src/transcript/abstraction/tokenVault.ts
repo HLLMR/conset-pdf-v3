@@ -6,8 +6,9 @@
  */
 
 import type { LayoutTranscript, LayoutSpan } from '../types.js';
-import type { AbstractTranscript, AbstractSpan, AbstractPage, PrivacyMode, TokenClass } from './abstractTranscript.js';
+import type { AbstractTranscript, AbstractSpan, AbstractPage, PrivacyMode, TokenClass, LengthBucket } from './abstractTranscript.js';
 import { PrivacyMode as PM, TokenClass as TC } from './abstractTranscript.js';
+import { detectCharClassFlags, getLengthBucket, generateTokenShape, generatePlaceholderId } from './shapeFeatures.js';
 
 /**
  * Whitelist of safe keywords that can be preserved
@@ -22,9 +23,10 @@ const WHITELIST_KEYWORDS = new Set([
  * TokenVault: Maps tokens to original text
  */
 export class TokenVault {
-  private mappings: Map<string, string> = new Map(); // tokenId → original text
-  private tokenFrequency: Map<string, number> = new Map(); // tokenId → frequency
-  private nextTokenId = 1;
+  private mappings: Map<string, string> = new Map(); // placeholderId → original text
+  private placeholderFrequency: Map<string, number> = new Map(); // placeholderId → frequency
+  private placeholderPages: Map<string, Set<number>> = new Map(); // placeholderId → set of page indices
+  private nextTokenId = 1; // For backward compatibility only
   
   /**
    * Tokenize a transcript into an abstract transcript
@@ -41,18 +43,13 @@ export class TokenVault {
     tokenVault: TokenVault;
   } {
     const abstractPages: AbstractPage[] = [];
-    let totalTokens = 0;
-    
-    // Track token patterns for repetition signals
-    const textPatternMap = new Map<string, string>(); // text → tokenId
     
     for (const page of transcript.pages) {
       const abstractSpans: AbstractSpan[] = [];
       
       for (const span of page.spans) {
-        const tokenized = this.tokenizeSpan(span, privacyMode, textPatternMap);
+        const tokenized = this.tokenizeSpan(span, privacyMode, new Map());
         abstractSpans.push(tokenized.span);
-        totalTokens = Math.max(totalTokens, this.nextTokenId - 1);
       }
       
       abstractPages.push({
@@ -72,11 +69,17 @@ export class TokenVault {
       filePath: transcript.filePath, // May be anonymized in sanitization step
       extractionEngine: transcript.extractionEngine,
       privacyMode,
+      coordinateSystem: {
+        origin: 'top-left',
+        units: 'pt',
+        yDirection: 'down',
+        rotationNormalized: true, // Assumes canonicalization has been applied
+      },
       pages: abstractPages,
       metadata: {
         totalPages: transcript.metadata.totalPages,
         hasTrueTextLayer: transcript.metadata.hasTrueTextLayer,
-        tokenCount: totalTokens,
+        placeholderCount: this.placeholderFrequency.size,
       },
     };
     
@@ -92,42 +95,64 @@ export class TokenVault {
   private tokenizeSpan(
     span: LayoutSpan,
     privacyMode: PrivacyMode,
-    textPatternMap: Map<string, string>
-  ): { span: AbstractSpan; tokenId: string } {
+    _textPatternMap: Map<string, string> // Unused but kept for signature compatibility
+  ): { span: AbstractSpan; placeholderId: string } {
     const text = span.text;
-    let tokenId: string;
+    let placeholderId: string;
     let tokenClass: TokenClass;
+    let tokenShape: string;
+    
+    // Detect shape features
+    const charClassFlags = detectCharClassFlags(text);
+    const lengthBucket = getLengthBucket(text.length);
     
     // Determine if text should be preserved or tokenized
     if (privacyMode === PM.FULL_TEXT_OPT_IN) {
-      // Full text mode: use special token that preserves text
-      tokenId = this.getOrCreateToken(text, text);
+      // Full text mode: use special placeholder that preserves text
+      tokenShape = generateTokenShape(text);
       tokenClass = TC.CONTENT;
+      placeholderId = this.getOrCreatePlaceholder(text, tokenClass, tokenShape, lengthBucket, charClassFlags);
     } else if (this.isWhitelisted(text, privacyMode)) {
-      // Whitelisted keyword: preserve
-      tokenId = this.getOrCreateToken(text, text);
+      // Whitelisted keyword: preserve shape but mark as keyword
+      tokenShape = text; // Preserve whitelisted text
       tokenClass = TC.KEYWORD;
+      placeholderId = this.getOrCreatePlaceholder(text, tokenClass, tokenShape, lengthBucket, charClassFlags);
     } else {
-      // Tokenize: replace with structural token
+      // Tokenize: replace with structural placeholder
       const pattern = this.detectPattern(text);
       tokenClass = pattern.class;
+      tokenShape = generateTokenShape(text);
       
-      // Check if we've seen this pattern before
-      if (textPatternMap.has(text)) {
-        tokenId = textPatternMap.get(text)!;
-        // Increment frequency
-        const freq = this.tokenFrequency.get(tokenId) || 0;
-        this.tokenFrequency.set(tokenId, freq + 1);
-      } else {
-        tokenId = this.createToken(text, tokenClass);
-        textPatternMap.set(text, tokenId);
-        this.tokenFrequency.set(tokenId, 1);
+      // Generate placeholderId from shape features (not original text)
+      placeholderId = generatePlaceholderId(
+        tokenClass,
+        tokenShape,
+        lengthBucket,
+        charClassFlags
+      );
+      
+      // Store mapping if not already stored
+      if (!this.mappings.has(placeholderId)) {
+        this.mappings.set(placeholderId, text);
+        this.placeholderFrequency.set(placeholderId, 0);
+        this.placeholderPages.set(placeholderId, new Set());
       }
+      
+      // Track frequency and pages
+      const freq = this.placeholderFrequency.get(placeholderId) || 0;
+      this.placeholderFrequency.set(placeholderId, freq + 1);
+      const pages = this.placeholderPages.get(placeholderId) || new Set();
+      pages.add(span.pageIndex);
+      this.placeholderPages.set(placeholderId, pages);
     }
     
+    // Note: repetition metrics will be computed later in sanitize step
     const abstractSpan: AbstractSpan = {
-      tokenId,
+      placeholderId,
       tokenClass,
+      tokenShape,
+      charClassFlags,
+      lengthBucket,
       originalLength: text.length,
       bbox: span.bbox,
       fontName: span.fontName,
@@ -136,10 +161,56 @@ export class TokenVault {
       color: span.color,
       spanId: span.spanId,
       pageIndex: span.pageIndex,
-      repetitionCount: this.tokenFrequency.get(tokenId),
+      repetition: {
+        repeatCountDoc: 0, // Will be computed later
+        repeatRateDoc: 0,
+        repeatPages: 0,
+        repeatRateByBand: { header: 0, footer: 0, body: 0 },
+      },
     };
     
-    return { span: abstractSpan, tokenId };
+    return { span: abstractSpan, placeholderId };
+  }
+  
+  /**
+   * Get or create placeholder for text (whitelisted/full-text mode)
+   */
+  private getOrCreatePlaceholder(
+    text: string,
+    tokenClass: TokenClass,
+    tokenShape: string,
+    lengthBucket: LengthBucket,
+    charClassFlags: { hasDigit: boolean; hasAlpha: boolean; hasUpper: boolean; hasLower: boolean; hasDash: boolean; hasSlash: boolean; hasDot: boolean; hasPunct: boolean }
+  ): string {
+    // For whitelisted/full-text, still use shape-based ID but store text
+    const placeholderId = generatePlaceholderId(
+      tokenClass,
+      tokenShape,
+      lengthBucket,
+      charClassFlags
+    );
+    
+    if (!this.mappings.has(placeholderId)) {
+      this.mappings.set(placeholderId, text);
+      this.placeholderFrequency.set(placeholderId, 0);
+      this.placeholderPages.set(placeholderId, new Set());
+    }
+    
+    return placeholderId;
+  }
+  
+  /**
+   * Get placeholder pages (for repetition metrics)
+   */
+  getPlaceholderPages(placeholderId: string): Set<number> {
+    return this.placeholderPages.get(placeholderId) || new Set();
+  }
+  
+  /**
+   * Get placeholder frequency
+   */
+  getPlaceholderFrequency(placeholderId: string): number {
+    return this.placeholderFrequency.get(placeholderId) || 0;
   }
   
   /**
@@ -167,62 +238,54 @@ export class TokenVault {
     
     // Check for numbers
     if (/^\d+$/.test(trimmed)) {
-      return { class: TC.NUMBER, pattern: '9999' };
+      return { class: TC.NUMBER, pattern: generateTokenShape(trimmed) };
     }
     
     // Check for date patterns
     if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(trimmed)) {
-      return { class: TC.DATE, pattern: 'MM/DD/YYYY' };
+      return { class: TC.DATE, pattern: generateTokenShape(trimmed) };
     }
     
     // Check for text patterns (all caps, all lowercase, etc.)
     if (/^[A-Z]+$/.test(trimmed)) {
-      return { class: TC.TEXT_PATTERN, pattern: 'AAAA' };
+      return { class: TC.TEXT_PATTERN, pattern: generateTokenShape(trimmed) };
     }
     if (/^[a-z]+$/.test(trimmed)) {
-      return { class: TC.TEXT_PATTERN, pattern: 'aaaa' };
+      return { class: TC.TEXT_PATTERN, pattern: generateTokenShape(trimmed) };
     }
     if (/^[A-Za-z]+$/.test(trimmed)) {
-      return { class: TC.TEXT_PATTERN, pattern: 'AaAa' };
+      return { class: TC.TEXT_PATTERN, pattern: generateTokenShape(trimmed) };
     }
     
     // Default: generic content
-    return { class: TC.CONTENT, pattern: 'XXXX' };
+    return { class: TC.CONTENT, pattern: generateTokenShape(trimmed) };
   }
   
-  /**
-   * Get or create a token for text
-   */
-  private getOrCreateToken(_text: string, originalText: string): string {
-    // Check if we already have a token for this exact text
-    for (const [tokenId, mappedText] of this.mappings.entries()) {
-      if (mappedText === originalText) {
-        return tokenId;
-      }
-    }
-    
-    // Create new token
-    return this.createToken(originalText, TC.CONTENT);
-  }
   
   /**
-   * Create a new token
+   * Create a new token (backward compatibility - deprecated)
+   * @deprecated Use shape-based placeholderId generation instead
+   * Note: This method is intentionally unused in the new implementation
+   * but kept for potential legacy code compatibility
    */
-  private createToken(originalText: string, _tokenClass: TokenClass): string {
+  // @ts-ignore - Intentionally unused, kept for backward compatibility
+  private createToken(_originalText: string, _tokenClass: TokenClass): string {
     const tokenId = `TOKEN_${this.nextTokenId.toString().padStart(6, '0')}`;
     this.nextTokenId++;
-    this.mappings.set(tokenId, originalText);
+    this.mappings.set(tokenId, _originalText);
+    this.placeholderFrequency.set(tokenId, 0);
+    this.placeholderPages.set(tokenId, new Set());
     return tokenId;
   }
   
   /**
-   * Reconstruct original text from token
+   * Reconstruct original text from placeholder
    * 
-   * @param tokenId Token identifier
+   * @param placeholderId Placeholder identifier
    * @returns Original text or null if not found
    */
-  reconstruct(tokenId: string): string | null {
-    return this.mappings.get(tokenId) || null;
+  reconstruct(placeholderId: string): string | null {
+    return this.mappings.get(placeholderId) || null;
   }
   
   /**
@@ -238,10 +301,11 @@ export class TokenVault {
   }
   
   /**
-   * Get token frequency
+   * Get token frequency (backward compatibility)
+   * @deprecated Use getPlaceholderFrequency instead
    */
   getTokenFrequency(tokenId: string): number {
-    return this.tokenFrequency.get(tokenId) || 0;
+    return this.placeholderFrequency.get(tokenId) || 0;
   }
   
   /**
@@ -260,12 +324,12 @@ export class TokenVault {
   } {
     const issues: string[] = [];
     
-    // Check that spans only contain token IDs, not original text
+    // Check that spans only contain placeholder IDs, not original text
     for (const page of abstractTranscript.pages) {
       for (const span of page.spans) {
-        // Token ID should match pattern TOKEN_XXXXXX
-        if (!/^TOKEN_\d+$/.test(span.tokenId)) {
-          issues.push(`Invalid token ID format: ${span.tokenId}`);
+        // Placeholder ID should match pattern PLACEHOLDER_XXXXXX or TOKEN_XXXXXX (backward compat)
+        if (!/^(PLACEHOLDER_|TOKEN_)[a-f0-9]+$/i.test(span.placeholderId)) {
+          issues.push(`Invalid placeholder ID format: ${span.placeholderId}`);
         }
       }
     }

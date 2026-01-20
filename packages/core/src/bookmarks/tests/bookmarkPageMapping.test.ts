@@ -7,11 +7,10 @@
 
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 
@@ -115,7 +114,9 @@ describe('Bookmark Page Mapping Regression Test', () => {
     
     try {
       // Load expected mappings from BookmarkAnchorTree
-      const expectedMappings = loadExpectedMappings(bookmarkTreePath);
+      // Path is relative to test file location
+      const fixturePath = join(repoRoot, 'tests', 'fixtures', 'diagnostics', 'specs-bookmark-tree.json');
+      const expectedMappings = loadExpectedMappings(fixturePath);
       
       if (expectedMappings.size === 0) {
         throw new Error('No expected mappings found in BookmarkAnchorTree');

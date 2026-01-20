@@ -51,10 +51,16 @@ function canonicalizePage(page: LayoutPage): LayoutPage {
   // Stable-sort spans within page
   const sortedSpans = stableSortSpans(coordinateNormalized.spans);
   
+  // Regenerate span IDs based on sorted position to ensure determinism
+  const spansWithDeterministicIds = sortedSpans.map((span, idx) => ({
+    ...span,
+    spanId: `page${page.pageIndex}_span${idx}`,
+  }));
+  
   return {
     ...coordinateNormalized,
     rotation: 0, // Always 0 after normalization
-    spans: sortedSpans,
+    spans: spansWithDeterministicIds,
   };
 }
 

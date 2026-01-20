@@ -67,16 +67,18 @@ packages/core/src/
 │   ├── bookmarks/     # Bookmarks workflow implementation
 │   └── mappers/       # Mapping from legacy structures to workflow types
 ├── bookmarks/        # Bookmarks pipeline module
-│   ├── types.ts      # BookmarkNode, BookmarkDestination, BookmarkTree types
-│   ├── reader.ts     # Read bookmarks from PDF
+│   ├── types.ts      # BookmarkNode, BookmarkDestination, BookmarkTree, BookmarkAnchorTree types
+│   ├── reader.ts     # Read bookmarks from PDF via DocumentContext
 │   ├── validator.ts  # Validate bookmark destinations
 │   ├── treeBuilder.ts # Build bookmark tree from BookmarkAnchorTree or inventory
-│   ├── corrections.ts # Apply correction overlays
+│   ├── corrections.ts # Apply correction overlays (rename, reorder, delete, retarget, rebuild)
+│   ├── headingResolver.ts # Layout-aware heading-based section resolution
 │   ├── pikepdfBookmarkWriter.ts # Sidecar-based bookmark writer (primary)
+│   ├── profiles/     # Bookmark style profiles (raw, specs-v1, specs-v2-detailed)
 │   ├── sidecar/      # Python sidecar
 │   │   ├── bookmark-writer.py
 │   │   └── requirements.txt
-│   └── __spike__/    # Proof spike tests
+│   └── tests/        # Bookmark tests
 └── utils/            # Utilities (legacy bookmark helpers, PDF helpers, sorting)
     ├── bookmarks.ts  # Legacy bookmark generation (deprecated for new workflows)
     ├── bookmarkWriter.ts # Bookmark writing interface
@@ -341,21 +343,34 @@ packages/core/src/
 
 **Rule**: Transcript system is backend-agnostic. All transcripts are automatically canonicalized. `DocumentContext` uses transcript system internally while maintaining backward-compatible API.
 
+### Bookmarks (`bookmarks/`)
+
+**Purpose**: Bookmarks pipeline module for reading, validating, and writing PDF bookmarks
+
+- **`types.ts`**: Bookmark data models (`BookmarkNode`, `BookmarkDestination`, `BookmarkTree`, `BookmarkAnchorTree`)
+- **`reader.ts`**: Read bookmarks from PDF via `DocumentContext`
+- **`validator.ts`**: Validate bookmark destinations
+- **`treeBuilder.ts`**: Build bookmark tree from `BookmarkAnchorTree` or inventory
+- **`corrections.ts`**: Apply correction overlays (rename, reorder, delete, retarget, rebuild)
+- **`pikepdfBookmarkWriter.ts`**: Sidecar-based bookmark writer (primary implementation)
+- **`headingResolver.ts`**: Layout-aware heading-based section resolution
+- **`profiles/`**: Bookmark style profiles
+  - `types.ts`: Bookmark profile types (`BookmarkProfileId`, `BookmarkStyleOptions`)
+  - `raw.ts`: Raw profile (preserves existing bookmarks)
+  - `specsV1.ts`: Specs v1 profile (SECTION/PART/Article hierarchy)
+  - `specsV2Detailed.ts`: Specs v2 detailed profile (includes subsections)
+- **`sidecar/bookmark-writer.py`**: Python script for bookmark writing via pikepdf/QPDF
+- **`settings.ts`**: Bookmark writer settings and configuration
+
+**Rule**: Bookmarks pipeline uses sidecar-first strategy with pikepdf/QPDF for cross-viewer reliability. Supports `BookmarkAnchorTree` from Specs Pipeline and inventory-based fallback.
+
 ### Utils (`utils/`)
 
 **Purpose**: Utilities
 
-- **`bookmarks.ts`**: Bookmark generation (legacy)
+- **`bookmarks.ts`**: Bookmark generation (legacy, used by merge workflow)
 - **`bookmarkWriter.ts`**: Bookmark writing interface
-- **`pdfLibBookmarkWriter.ts`**: pdf-lib implementation of bookmark writer (development/testing only, not primary writer)
-- **`bookmarks/`**: Bookmarks pipeline module
-  - **`types.ts`**: Bookmark data models (BookmarkNode, BookmarkDestination, BookmarkTree)
-  - **`reader.ts`**: Read bookmarks from PDF via DocumentContext
-  - **`validator.ts`**: Validate bookmark destinations
-  - **`treeBuilder.ts`**: Build bookmark tree from BookmarkAnchorTree or inventory
-  - **`corrections.ts`**: Apply correction overlays
-  - **`pikepdfBookmarkWriter.ts`**: Sidecar-based bookmark writer (primary implementation)
-  - **`sidecar/bookmark-writer.py`**: Python script for bookmark writing via pikepdf/QPDF
+- **`pdfLibBookmarkWriter.ts`**: pdf-lib implementation of bookmark writer (development/testing only, used by merge workflow)
 - **`pdf.ts`**: PDF helpers (legacy fallback)
 - **`fs.ts`**: File system helpers (`fileExists`, `writeJson`)
 - **`sort.ts`**: Natural sort comparator for construction document IDs

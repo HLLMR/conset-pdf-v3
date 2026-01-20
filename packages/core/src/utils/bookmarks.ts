@@ -1,7 +1,3 @@
-import { PDFDocument } from 'pdf-lib';
-import type { ConsetDocType } from '../index.js';
-import { extractPageTextWithPositions, autoDetectTitleBlock } from './pdf.js';
-import { findSheetIdWithFullDetection } from '../parser/drawingsSheetId.js';
 import type { TextItemWithPosition } from './pdf.js';
 
 /**
@@ -145,184 +141,18 @@ export function extractSheetTitle(
 }
 
 /**
- * Generate bookmarks for a PDF based on detected sheet numbers and titles
+ * DELETION CANDIDATE: generateBookmarks()
+ * 
+ * Status: Orphaned - never called
+ * Evidence: 
+ *   - grep shows no calls to generateBookmarks() in codebase
+ *   - Bookmark generation now handled by PdfLibBookmarkWriter in core/applyPlan.ts
+ *   - This function uses legacy pdfPath-based detection (bypasses DocumentContext)
+ * 
+ * Migration: If bookmark generation needed, use workflow engine (createBookmarksWorkflowRunner)
+ * or PdfLibBookmarkWriter directly.
+ * 
+ * TODO: Remove after confirming no external usage
+ * Tracking: Cleanup pass 2026-01-17
  */
-export async function generateBookmarks(
-  pdfPath: string,
-  pdfDoc: PDFDocument,
-  type: ConsetDocType,
-  customPattern?: string,
-  verbose: boolean = false
-): Promise<void> {
-  if (type !== 'drawings') {
-    if (verbose) {
-      console.log('Bookmark generation only supported for drawings type');
-    }
-    return;
-  }
-  
-  if (verbose) {
-    console.log('\n[Bookmarks] Generating bookmarks from detected sheet numbers...');
-  }
-  
-  const pageCount = pdfDoc.getPageCount();
-  const bookmarks: Array<{ title: string; pageIndex: number }> = [];
-  
-  for (let i = 0; i < pageCount; i++) {
-    if (verbose && (i === 0 || (i + 1) % 20 === 0)) {
-      console.log(`  Processing page ${i + 1}/${pageCount} for bookmark...`);
-    }
-    
-    // Find sheet ID
-    const parsed = await findSheetIdWithFullDetection(pdfPath, i, customPattern, false);
-    
-    if (!parsed || parsed.confidence < 0.60) {
-      // Skip pages without reliable sheet IDs
-      continue;
-    }
-    
-    // Extract title from title block
-    const titleBlockBounds = await autoDetectTitleBlock(pdfPath, i, false);
-    const pageData = await extractPageTextWithPositions(pdfPath, i);
-    
-    let title: string | null = null;
-    
-    if (pageData && parsed.source === 'title-block') {
-      // Find the sheet ID item in the title block
-      const titleBlockItems = pageData.items.filter(item => {
-        const itemRight = item.x + item.width;
-        const itemBottom = item.y + item.height;
-        return item.x >= titleBlockBounds.x &&
-               item.y >= titleBlockBounds.y &&
-               itemRight <= titleBlockBounds.x + titleBlockBounds.width &&
-               itemBottom <= titleBlockBounds.y + titleBlockBounds.height;
-      });
-      
-      // Find the text item that matches the sheet ID
-      const sheetIdItem = titleBlockItems.find(item => {
-        const text = item.str.trim();
-        return text.includes(parsed.id) || text.includes(parsed.normalized);
-      });
-      
-      if (sheetIdItem) {
-        title = extractSheetTitle(sheetIdItem, titleBlockItems);
-      }
-    }
-    
-    // Format bookmark: "[sheet no] - [title]" or just "[sheet no]" if no title
-    const bookmarkTitle = title 
-      ? `${parsed.id} - ${title}`
-      : parsed.id;
-    
-    bookmarks.push({
-      title: bookmarkTitle,
-      pageIndex: i,
-    });
-    
-    if (verbose) {
-      console.log(`  ✓ Page ${i + 1}: "${bookmarkTitle}"`);
-    }
-  }
-  
-  if (bookmarks.length === 0) {
-    if (verbose) {
-      console.log('  No bookmarks generated (no sheet IDs found)');
-    }
-    return;
-  }
-  
-  // Remove existing bookmarks by clearing the outline
-  try {
-    const catalog = pdfDoc.catalog;
-    // Note: pdf-lib's catalog.dict is not in public API types but exists internally
-    // We access it via 'any' to manipulate outline structure
-    if (catalog && (catalog as any).dict) {
-      (catalog as any).dict.delete('Outlines');
-    }
-  } catch (e) {
-    // Ignore if outlines don't exist
-  }
-  
-  // Create bookmarks using pdf-lib's outline API
-  // pdf-lib's bookmark support is limited - we'll use a workaround approach
-  try {
-    const { PDFDict, PDFName, PDFString, PDFArray } = await import('pdf-lib');
-    
-    if (bookmarks.length === 0) {
-      if (verbose) {
-        console.log('  No bookmarks to create');
-      }
-      return;
-    }
-    
-    // Create outline items as a simple linked list (forward only to avoid circular refs)
-    const outlineItemRefs: any[] = [];
-    
-    for (let i = 0; i < bookmarks.length; i++) {
-      const bookmark = bookmarks[i];
-      try {
-        const page = pdfDoc.getPage(bookmark.pageIndex);
-        const pageRef = page.ref;
-        
-        // Create outline item dictionary
-        const outlineItem = PDFDict.withContext(pdfDoc.context);
-        outlineItem.set(PDFName.of('Title'), PDFString.of(bookmark.title));
-        
-        // Create destination
-        const destArray = PDFArray.withContext(pdfDoc.context);
-        destArray.push(pageRef);
-        destArray.push(PDFName.of('XYZ'));
-        destArray.push(pdfDoc.context.obj(null));
-        destArray.push(pdfDoc.context.obj(null));
-        destArray.push(pdfDoc.context.obj(null));
-        
-        outlineItem.set(PDFName.of('Dest'), destArray);
-        
-        // Link to next item (if exists)
-        if (i < bookmarks.length - 1) {
-          // We'll set this after creating all items
-        }
-        
-        outlineItemRefs.push(outlineItem);
-      } catch (error: any) {
-        if (verbose) {
-          console.log(`  ⚠️  Failed to create bookmark for page ${bookmark.pageIndex + 1}: ${error?.message}`);
-        }
-      }
-    }
-    
-    if (outlineItemRefs.length === 0) {
-      return;
-    }
-    
-    // Link items (forward only)
-    for (let i = 0; i < outlineItemRefs.length - 1; i++) {
-      outlineItemRefs[i].set(PDFName.of('Next'), outlineItemRefs[i + 1]);
-    }
-    
-    // Create outline dictionary
-    const outlineDict = PDFDict.withContext(pdfDoc.context);
-    outlineDict.set(PDFName.of('Type'), PDFName.of('Outlines'));
-    outlineDict.set(PDFName.of('First'), outlineItemRefs[0]);
-    outlineDict.set(PDFName.of('Last'), outlineItemRefs[outlineItemRefs.length - 1]);
-    outlineDict.set(PDFName.of('Count'), pdfDoc.context.obj(outlineItemRefs.length));
-    
-    // Add to catalog - use direct dict access
-    const catalog = pdfDoc.catalog as any;
-    const catalogDict = catalog?.dict || catalog;
-    if (catalogDict) {
-      catalogDict.set(PDFName.of('Outlines'), outlineDict);
-    }
-    
-    if (verbose) {
-      console.log(`\n[Bookmarks] Generated ${bookmarks.length} bookmark(s)`);
-      console.log(`  Note: Bookmarks created. If not visible, pdf-lib bookmark support may be limited.`);
-    }
-  } catch (error: any) {
-    if (verbose) {
-      console.log(`  ⚠️  Failed to create bookmarks: ${error?.message}`);
-      console.log(`  Note: pdf-lib has limited bookmark support. Consider using a PDF tool to add bookmarks manually.`);
-    }
-    // Don't throw - bookmarks are optional
-  }
-}
+// export async function generateBookmarks(...) { ... } // DELETED - orphaned function

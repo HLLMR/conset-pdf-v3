@@ -1,5 +1,8 @@
 /**
- * Debug utility: Dump per-page text items with bounding boxes by vertical regions
+ * Test utility: Dump per-page text items with bounding boxes by vertical regions
+ * 
+ * NOTE: This utility is only used in tests (headingResolution.test.ts).
+ * Consider moving to bookmarks/tests/ if it's test-only.
  * 
  * Regions:
  * - header band: top 0–12% of page height

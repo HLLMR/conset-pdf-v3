@@ -164,4 +164,3 @@ If PyMuPDF is unavailable, the system automatically falls back to PDF.js. You'll
 ## See Also
 
 - [TRANSCRIPT_ARCHITECTURE.md](./TRANSCRIPT_ARCHITECTURE.md) - Architecture details
-- [EXTRACTION_BACKENDS.md](./EXTRACTION_BACKENDS.md) - Backend comparison

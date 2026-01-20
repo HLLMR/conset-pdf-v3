@@ -64,6 +64,18 @@ export async function extractSchedules(
 
 /**
  * Export schedule table to CSV format
+ * 
+ * Part of the V3 transcript system's schedule extraction module. Use this to export
+ * extracted schedule tables to CSV format for further processing or analysis.
+ * 
+ * @param table Schedule table to export (from extractSchedules())
+ * @returns CSV string with header row and data rows
+ * @example
+ * ```typescript
+ * import { extractSchedules, exportScheduleToCSV } from '@conset-pdf/core';
+ * const tables = await extractSchedules(transcript);
+ * const csv = exportScheduleToCSV(tables[0]);
+ * ```
  */
 export function exportScheduleToCSV(table: ScheduleTable): string {
   const lines: string[] = [];
@@ -96,6 +108,18 @@ export function exportScheduleToCSV(table: ScheduleTable): string {
 
 /**
  * Export schedule table to JSON format
+ * 
+ * Part of the V3 transcript system's schedule extraction module. Use this to export
+ * extracted schedule tables to JSON format for further processing or analysis.
+ * 
+ * @param table Schedule table to export (from extractSchedules())
+ * @returns JSON string (pretty-printed with 2-space indent)
+ * @example
+ * ```typescript
+ * import { extractSchedules, exportScheduleToJSON } from '@conset-pdf/core';
+ * const tables = await extractSchedules(transcript);
+ * const json = exportScheduleToJSON(tables[0]);
+ * ```
  */
 export function exportScheduleToJSON(table: ScheduleTable): string {
   return JSON.stringify(table, null, 2);

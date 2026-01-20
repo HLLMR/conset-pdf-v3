@@ -7,10 +7,12 @@
 
 import { createHmac } from 'crypto';
 import type { LayoutTranscript, LayoutPage, LayoutSpan } from '../types.js';
-import type { AbstractTranscript } from './abstractTranscript.js';
+import type { AbstractTranscript, AbstractPage, BandDefinitions, SamplingMetadata } from './abstractTranscript.js';
 import { TokenVault } from './tokenVault.js';
 import { PrivacyMode } from './abstractTranscript.js';
 import { generateCandidates } from '../candidates.js';
+import { groupSpansIntoLines } from './lineGrouping.js';
+import { computeRepetitionMetrics } from './repetitionMetrics.js';
 
 /**
  * Sanitization options
@@ -67,12 +69,107 @@ export function sanitizeTranscript(
   
   // Tokenize
   const tokenVault = new TokenVault();
-  const { abstractTranscript } = tokenVault.tokenize(anonymizedTranscript, privacyMode);
+  const { abstractTranscript: rawAbstract } = tokenVault.tokenize(anonymizedTranscript, privacyMode);
+  
+  // Generate candidates for band detection
+  const candidates = generateCandidates(transcript);
+  
+  // Compute band definitions
+  const bands = computeBandDefinitions(candidates, transcript.pages);
+  
+  // Determine sampling metadata
+  const sampling: SamplingMetadata | undefined = options.sampling ? {
+    sampledPages: rawAbstract.pages.length,
+    totalPages: transcript.metadata.totalPages,
+    samplingStrategy: describeSamplingStrategy(options.sampling),
+  } : undefined;
+  
+  // Compute repetition metrics
+  const pagesWithSpans = rawAbstract.pages.map(page => ({
+    spans: page.spans,
+    pageIndex: page.pageIndex,
+    height: page.height,
+  }));
+  computeRepetitionMetrics(pagesWithSpans, tokenVault, transcript.metadata.totalPages, bands);
+  
+  // Group spans into lines
+  const abstractPages: AbstractPage[] = rawAbstract.pages.map(page => {
+    const lines = groupSpansIntoLines(page.spans, page.pageIndex, page.width, page.height);
+    return {
+      ...page,
+      lines,
+    };
+  });
+  
+  // Build final abstract transcript
+  const abstractTranscript: AbstractTranscript = {
+    ...rawAbstract,
+    bands,
+    sampling,
+    pages: abstractPages,
+  };
   
   return {
     abstractTranscript,
     tokenVault,
   };
+}
+
+/**
+ * Compute band definitions from candidates
+ */
+function computeBandDefinitions(
+  candidates: ReturnType<typeof generateCandidates>,
+  pages: LayoutPage[]
+): BandDefinitions | undefined {
+  if (pages.length === 0) return undefined;
+  
+  // Use first page dimensions as reference
+  const pageHeight = pages[0].height;
+  
+  // Find header band (top-most repeated Y)
+  const headerBands = candidates.headerBands || [];
+  const headerYMax = headerBands.length > 0
+    ? Math.max(...headerBands.map(b => b.y)) + 20 // Add padding
+    : pageHeight * 0.15;
+  
+  // Find footer band (bottom-most repeated Y)
+  const footerBands = candidates.footerBands || [];
+  const footerYMin = footerBands.length > 0
+    ? Math.min(...footerBands.map(b => b.y)) - 20 // Add padding
+    : pageHeight * 0.85;
+  
+  // Body is the middle region
+  const bodyYMin = headerYMax;
+  const bodyYMax = footerYMin;
+  
+  return {
+    header: { yMin: 0, yMax: headerYMax },
+    footer: { yMin: footerYMin, yMax: pageHeight },
+    body: { yMin: bodyYMin, yMax: bodyYMax },
+  };
+}
+
+/**
+ * Describe sampling strategy for metadata
+ */
+function describeSamplingStrategy(sampling: NonNullable<SanitizeOptions['sampling']>): string {
+  const parts: string[] = [];
+  
+  if (sampling.maxPages) {
+    parts.push(`maxPages=${sampling.maxPages}`);
+  }
+  if (sampling.includeChromeBands) {
+    parts.push('chromeBands');
+  }
+  if (sampling.includeHeadings) {
+    parts.push('headings');
+  }
+  if (sampling.includeTables) {
+    parts.push('tables');
+  }
+  
+  return parts.length > 0 ? parts.join(',') : 'full';
 }
 
 /**
@@ -189,8 +286,16 @@ function pseudonymizePath(filePath: string, salt: string): string {
 /**
  * Preserve token shape (AAAA, 9999, etc.) in abstract transcript
  * 
- * This ensures that structural patterns are preserved even when
- * content is tokenized.
+ * **Internal utility function** - Not part of the supported public API.
+ * This function is used internally by the TokenVault abstraction layer to generate
+ * placeholder shapes for tokenized content. External users should not call this directly.
+ * 
+ * @deprecated This function is not part of the supported public API and may be removed
+ * in v2.0.0. It is an internal utility used by TokenVault. Use sanitizeTranscript()
+ * for privacy-preserving transcript abstraction instead.
+ * @param text Original text (unused, kept for API compatibility)
+ * @param tokenClass Token class identifier
+ * @returns Placeholder shape string
  */
 export function preserveTokenShape(
   text: string,

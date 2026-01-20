@@ -36,13 +36,56 @@ export enum TokenClass {
 }
 
 /**
- * Abstract span (text replaced with token)
+ * Character class flags for shape detection
+ */
+export interface CharClassFlags {
+  hasDigit: boolean;
+  hasAlpha: boolean;
+  hasUpper: boolean;
+  hasLower: boolean;
+  hasDash: boolean;
+  hasSlash: boolean;
+  hasDot: boolean;
+  hasPunct: boolean;
+}
+
+/**
+ * Length bucket for text classification
+ */
+export type LengthBucket = '1' | '2-3' | '4-6' | '7-12' | '13+';
+
+/**
+ * Repetition metrics for a placeholder
+ */
+export interface RepetitionMetrics {
+  /** Count across full document (or sampled pages) */
+  repeatCountDoc: number;
+  /** Rate (0..1) = repeatPages / totalPages */
+  repeatRateDoc: number;
+  /** Count of pages in which this placeholder appears */
+  repeatPages: number;
+  /** Repetition rate by band */
+  repeatRateByBand: {
+    header: number;
+    footer: number;
+    body: number;
+  };
+}
+
+/**
+ * Abstract span (text replaced with placeholder)
  */
 export interface AbstractSpan {
-  /** Token identifier (e.g., "TOKEN_001") */
-  tokenId: string;
+  /** Placeholder identifier (hash-based, stable for identical shapes) */
+  placeholderId: string;
   /** Token class */
   tokenClass: TokenClass;
+  /** Shape pattern (e.g., "AAAA", "9999", "AA-999", "99/99/9999") */
+  tokenShape: string;
+  /** Character class flags */
+  charClassFlags: CharClassFlags;
+  /** Length bucket */
+  lengthBucket: LengthBucket;
   /** Original text length (preserved for layout) */
   originalLength: number;
   /** Bounding box in PDF points, visual space: [x0, y0, x1, y1] */
@@ -63,12 +106,32 @@ export interface AbstractSpan {
   spanId: string;
   /** 0-based page index */
   pageIndex: number;
-  /** Repetition signal (how many times this token pattern appears) */
-  repetitionCount?: number;
+  /** Repetition metrics */
+  repetition: RepetitionMetrics;
+  /** Reference to line containing this span (if line grouping enabled) */
+  lineId?: string;
 }
 
 /**
- * Abstract page (spans with tokens instead of text)
+ * Abstract line (grouped spans)
+ */
+export interface AbstractLine {
+  /** Line identifier */
+  lineId: string;
+  /** 0-based page index */
+  pageIndex: number;
+  /** Line bounding box */
+  lineBbox: [x0: number, y0: number, x1: number, y1: number];
+  /** Line index within page (top-to-bottom order) */
+  lineIndexWithinPage: number;
+  /** Reading order index (stable order value) */
+  readingOrderIndex: number;
+  /** Placeholders in this line */
+  placeholders: AbstractSpan[];
+}
+
+/**
+ * Abstract page (spans with placeholders instead of text)
  */
 export interface AbstractPage {
   /** 1-based page number */
@@ -79,8 +142,10 @@ export interface AbstractPage {
   width: number;
   /** Page height in points */
   height: number;
-  /** Abstract spans (text replaced with tokens) */
+  /** Abstract spans (text replaced with placeholders) */
   spans: AbstractSpan[];
+  /** Abstract lines (grouped spans) */
+  lines?: AbstractLine[];
   /** Page-level metadata */
   metadata: {
     /** Character count (from original) */
@@ -88,6 +153,44 @@ export interface AbstractPage {
     /** Whether this page has a text layer */
     hasTextLayer: boolean;
   };
+}
+
+/**
+ * Coordinate system metadata
+ */
+export interface CoordinateSystem {
+  /** Origin position */
+  origin: 'top-left';
+  /** Units */
+  units: 'pt';
+  /** Y direction */
+  yDirection: 'down';
+  /** Whether rotation is normalized */
+  rotationNormalized: boolean;
+}
+
+/**
+ * Band definitions
+ */
+export interface BandDefinitions {
+  /** Header band Y range */
+  header: { yMin: number; yMax: number };
+  /** Footer band Y range */
+  footer: { yMin: number; yMax: number };
+  /** Body band Y range (derived) */
+  body: { yMin: number; yMax: number };
+}
+
+/**
+ * Sampling metadata
+ */
+export interface SamplingMetadata {
+  /** Number of pages sampled */
+  sampledPages: number;
+  /** Total pages in document */
+  totalPages: number;
+  /** Sampling strategy description */
+  samplingStrategy: string;
 }
 
 /**
@@ -100,6 +203,12 @@ export interface AbstractTranscript {
   extractionEngine: string;
   /** Privacy mode used */
   privacyMode: PrivacyMode;
+  /** Coordinate system metadata */
+  coordinateSystem: CoordinateSystem;
+  /** Band definitions (if available) */
+  bands?: BandDefinitions;
+  /** Sampling metadata (if transcript is sampled) */
+  sampling?: SamplingMetadata;
   /** Abstract pages */
   pages: AbstractPage[];
   /** Transcript-level metadata */
@@ -108,7 +217,7 @@ export interface AbstractTranscript {
     totalPages: number;
     /** Whether the PDF has a true text layer */
     hasTrueTextLayer: boolean;
-    /** Token count (unique tokens) */
-    tokenCount: number;
+    /** Placeholder count (unique placeholders) */
+    placeholderCount: number;
   };
 }

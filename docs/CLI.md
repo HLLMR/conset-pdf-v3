@@ -709,6 +709,89 @@ conset-pdf fix-bookmarks \
 
 ---
 
+### specs-inventory
+
+Generate deterministic spec inventory using footer-first sectionization.
+
+**Purpose**: Extract section structure from spec PDFs using footer-based section detection. Useful for analyzing spec document structure and preparing for bookmark generation.
+
+**Usage**:
+```bash
+conset-pdf specs-inventory \
+  --input <path> \
+  [options]
+```
+
+**Required Arguments**:
+- `--input <path>`: Path to input PDF
+
+**Options**:
+- `--output <path>`: Path to write JSON output (default: stdout)
+- `--verbose`: Verbose output (default: false)
+- `--sample-count <count>`: Number of pages to sample for region detection (default: 30)
+
+**Input Format**: PDF file (spec PDF)
+
+**Output Format**: JSON inventory file (or stdout)
+
+**Output JSON Shape**:
+```json
+{
+  "inputPdf": "Specs.pdf",
+  "pageCount": 500,
+  "regions": {
+    "header": { "yMin": 0.0, "yMax": 0.12 },
+    "footer": { "yMin": 0.88, "yMax": 1.0 }
+  },
+  "sectionRuns": [
+    {
+      "sectionId": "23 09 00",
+      "startPageIndex": 10,
+      "endPageIndex": 45,
+      "pageCount": 36,
+      "needsCorrection": false,
+      "pages": [...]
+    }
+  ],
+  "auditRecords": [...],
+  "pageAssignments": [...],
+  "summary": {
+    "totalRuns": 25,
+    "totalPages": 500,
+    "pagesWithSectionId": 485,
+    "pagesNeedingCorrection": 15,
+    "auditRecordCount": 20
+  }
+}
+```
+
+**Examples**:
+
+Basic inventory generation:
+```bash
+conset-pdf specs-inventory \
+  --input Specs.pdf \
+  --output specs-inventory.json
+```
+
+Verbose output:
+```bash
+conset-pdf specs-inventory \
+  --input Specs.pdf \
+  --output specs-inventory.json \
+  --verbose \
+  --sample-count 50
+```
+
+**Exit Codes**:
+- `0`: Success
+- `2`: Invalid arguments or validation error
+- `4`: File I/O error
+
+**Note**: This command uses `detectPageRegions()` and `sectionizePages()` from `@conset-pdf/core` to perform footer-first sectionization. It's a utility command for analyzing spec document structure.
+
+---
+
 ## Common Patterns
 
 ### Using Layout Profiles

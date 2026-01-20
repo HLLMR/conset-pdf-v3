@@ -58,9 +58,23 @@ export interface WorkflowRunner<IAnalyze, ICorrections, IExecute> {
 /**
  * Create a workflow runner from an implementation
  * 
+ * **Advanced/Expert API**: Use this to create custom workflow runners that follow the
+ * standard analyze → applyCorrections → execute pattern. For standard workflows, use
+ * the specific factory functions: createMergeWorkflowRunner(), createSpecsPatchWorkflowRunner(),
+ * or createBookmarksWorkflowRunner().
+ * 
+ * This function is intended for advanced users who need to implement custom workflows
+ * that integrate with the workflow engine infrastructure.
+ * 
  * @param _workflowId - Workflow identifier (reserved for future use)
- * @param impl - Workflow implementation
+ * @param impl - Workflow implementation following the WorkflowImpl interface
  * @returns Workflow runner with analyze, applyCorrections, and execute methods
+ * @example
+ * ```typescript
+ * import { createWorkflowRunner } from '@conset-pdf/core';
+ * const runner = createWorkflowRunner('my-workflow', myWorkflowImpl);
+ * const inventory = await runner.analyze(input);
+ * ```
  */
 export function createWorkflowRunner<IAnalyze, ICorrections, IExecute>(
   _workflowId: WorkflowId,

@@ -29,7 +29,9 @@ def extract_transcript(pdf_path: Path, options: Dict[str, Any]) -> Dict:
     total_chars = 0
     
     # Determine page subset
-    page_indices = options.get('pages', list(range(len(doc))))
+    page_indices = options.get('pages')
+    if page_indices is None:
+        page_indices = list(range(len(doc)))
     
     for page_idx in page_indices:
         if page_idx < 0 or page_idx >= len(doc):

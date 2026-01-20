@@ -371,7 +371,6 @@ conset-pdf/
 - **[Transcript Architecture](docs/TRANSCRIPT_ARCHITECTURE.md)** - V3 transcript system overview
 - **[Migration Guide](docs/MIGRATION_V3.md)** - Migrating from PDF.js to transcript system
 - **[ML Ruleset Compiler](docs/ML_RULESET_COMPILER.md)** - ML-assisted profile generation
-- **[Implementation Status](docs/IMPLEMENTATION_STATUS.md)** - V3 implementation completeness
 - **[Public API](docs/PUBLIC_API.md)** - Stable API contracts
 - **[CLI](docs/CLI.md)** - All CLI commands, arguments, options, examples
 - **[Workflows](docs/WORKFLOWS.md)** - Workflow details, inputs, outputs, implementation status

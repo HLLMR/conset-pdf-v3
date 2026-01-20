@@ -27,6 +27,10 @@ async function getPdfJs() {
 
 /**
  * Load a PDF document from a file path (for manipulation with pdf-lib)
+ * 
+ * NOTE: Still used by core/applyPlan.ts, core/splitSet.ts, core/assembleSet.ts
+ * These are legacy workflows that haven't been migrated to workflow engine yet.
+ * Keep until split/assemble workflows are implemented.
  */
 export async function loadPdf(path: string): Promise<PDFDocument> {
   const bytes = await fs.readFile(path);
@@ -35,6 +39,10 @@ export async function loadPdf(path: string): Promise<PDFDocument> {
 
 /**
  * Save a PDF document to a file path
+ * 
+ * NOTE: Still used by core/applyPlan.ts, core/splitSet.ts, core/assembleSet.ts
+ * These are legacy workflows that haven't been migrated to workflow engine yet.
+ * Keep until split/assemble workflows are implemented.
  */
 export async function savePdf(doc: PDFDocument, path: string): Promise<void> {
   try {
@@ -76,6 +84,10 @@ export async function getPdfPageCount(pdfPath: string): Promise<number> {
 
 /**
  * Copy pages from source to destination PDF
+ * 
+ * NOTE: Still used by core/applyPlan.ts, core/splitSet.ts, core/assembleSet.ts
+ * These are legacy workflows that haven't been migrated to workflow engine yet.
+ * Keep until split/assemble workflows are implemented.
  */
 export async function copyPages(
   sourceDoc: PDFDocument,

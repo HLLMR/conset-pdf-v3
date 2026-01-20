@@ -10,6 +10,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'fs/promises';
+import { existsSync } from 'fs';
 import * as os from 'os';
 import type { TranscriptExtractor, ExtractOptions, EngineInfo } from '../interfaces.js';
 import type { LayoutTranscript } from '../types.js';
@@ -40,6 +41,26 @@ async function findPython(): Promise<string> {
 
 /**
  * PyMuPDF extractor implementation
+ * 
+ * **Advanced/Expert API**: Direct access to the PyMuPDF extractor implementation.
+ * For most use cases, use createTranscriptExtractor() which automatically selects
+ * the best available extractor (PyMuPDF primary, PDF.js fallback).
+ * 
+ * Use this class directly when you need:
+ * - Explicit control over which extractor to use
+ * - Access to PyMuPDF-specific features
+ * - Custom extractor configuration
+ * 
+ * **Requirements**: Python 3.8+ and PyMuPDF installed
+ * 
+ * @example
+ * ```typescript
+ * import { PyMuPDFExtractor, createTranscriptExtractor } from '@conset-pdf/core';
+ * // Recommended: use factory
+ * const extractor = createTranscriptExtractor();
+ * // Advanced: use directly
+ * const pymupdfExtractor = new PyMuPDFExtractor();
+ * ```
  */
 export class PyMuPDFExtractor implements TranscriptExtractor {
   async extractTranscript(
@@ -100,7 +121,18 @@ export class PyMuPDFExtractor implements TranscriptExtractor {
   }
   
   private getScriptPath(): string {
+    // Try dist first (production), then src (development)
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    return path.join(__dirname, '..', 'sidecar', 'extract-transcript.py');
+    const distPath = path.join(__dirname, '..', 'sidecar', 'extract-transcript.py');
+    
+    // If running from src (development), look in src
+    if (!existsSync(distPath)) {
+      const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'transcript', 'sidecar', 'extract-transcript.py');
+      if (existsSync(srcPath)) {
+        return srcPath;
+      }
+    }
+    
+    return distPath;
   }
 }

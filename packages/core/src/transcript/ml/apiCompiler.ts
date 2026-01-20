@@ -22,6 +22,7 @@ import type {
   SheetTemplateProfile,
   EquipmentSubmittalProfile,
 } from '../profiles/types.js';
+import type { LayoutTranscript } from '../types.js';
 import { validateProfile } from '../profiles/validation.js';
 import { createTranscriptExtractor } from '../factory.js';
 
@@ -86,7 +87,7 @@ export class APIRulesetCompiler implements RulesetCompiler {
   private async compileWithValidation<T extends SpecProfile | SheetTemplateProfile | EquipmentSubmittalProfile>(
     input: ProfileProposalInput,
     _docType: 'spec' | 'drawing' | 'equipmentSubmittal',
-    promptGenerator: (input: ProfileProposalInput, previousIssues?: string[]) => { systemPrompt: string; userPrompt: string },
+    promptGenerator: (input: ProfileProposalInput, previousIssues?: string[]) => Promise<{ systemPrompt: string; userPrompt: string }>,
     parser: (response: string) => T,
   ): Promise<ProfileCandidate<T>> {
     let attempts = 0;
@@ -108,7 +109,7 @@ export class APIRulesetCompiler implements RulesetCompiler {
       attempts++;
 
       // Generate prompt
-      const { systemPrompt, userPrompt } = promptGenerator(input, previousIssues.length > 0 ? previousIssues : undefined);
+      const { systemPrompt, userPrompt } = await promptGenerator(input, previousIssues.length > 0 ? previousIssues : undefined);
 
       // Call LLM
       const response = await this.callLLM({
@@ -235,7 +236,7 @@ export class APIRulesetCompiler implements RulesetCompiler {
   /**
    * Generate prompt for spec profile
    */
-  private generateSpecProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): { systemPrompt: string; userPrompt: string } {
+  private async generateSpecProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): Promise<{ systemPrompt: string; userPrompt: string }> {
     const systemPrompt = `You are an expert at analyzing PDF document structure and generating extraction profiles for specification documents.
 
 Your task is to analyze an abstract transcript (where sensitive content has been replaced with tokens) and propose a SpecProfile JSON structure.
@@ -248,14 +249,14 @@ The SpecProfile should include:
 
 Return ONLY valid JSON matching the SpecProfile interface.`;
 
-    const userPrompt = this.buildUserPrompt(input, previousIssues, 'spec');
+    const userPrompt = await this.buildUserPrompt(input, previousIssues, 'spec');
     return { systemPrompt, userPrompt };
   }
 
   /**
    * Generate prompt for sheet template profile
    */
-  private generateSheetTemplateProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): { systemPrompt: string; userPrompt: string } {
+  private async generateSheetTemplateProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): Promise<{ systemPrompt: string; userPrompt: string }> {
     const systemPrompt = `You are an expert at analyzing PDF document structure and generating extraction profiles for drawing/sheet templates.
 
 Your task is to analyze an abstract transcript and propose a SheetTemplateProfile JSON structure.
@@ -268,14 +269,14 @@ The SheetTemplateProfile should include:
 
 Return ONLY valid JSON matching the SheetTemplateProfile interface.`;
 
-    const userPrompt = this.buildUserPrompt(input, previousIssues, 'drawing');
+    const userPrompt = await this.buildUserPrompt(input, previousIssues, 'drawing');
     return { systemPrompt, userPrompt };
   }
 
   /**
    * Generate prompt for equipment submittal profile
    */
-  private generateEquipmentSubmittalProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): { systemPrompt: string; userPrompt: string } {
+  private async generateEquipmentSubmittalProfilePrompt(input: ProfileProposalInput, previousIssues?: string[]): Promise<{ systemPrompt: string; userPrompt: string }> {
     const systemPrompt = `You are an expert at analyzing PDF document structure and generating extraction profiles for equipment submittal documents.
 
 Your task is to analyze an abstract transcript and propose an EquipmentSubmittalProfile JSON structure.
@@ -287,32 +288,44 @@ The EquipmentSubmittalProfile should include:
 
 Return ONLY valid JSON matching the EquipmentSubmittalProfile interface.`;
 
-    const userPrompt = this.buildUserPrompt(input, previousIssues, 'equipmentSubmittal');
+    const userPrompt = await this.buildUserPrompt(input, previousIssues, 'equipmentSubmittal');
     return { systemPrompt, userPrompt };
   }
 
   /**
    * Build user prompt from input
    */
-  private buildUserPrompt(input: ProfileProposalInput, previousIssues?: string[], docType?: string): string {
-    const abstractJson = JSON.stringify(input.abstractTranscript, null, 2);
+  private async buildUserPrompt(input: ProfileProposalInput, previousIssues?: string[], _docType?: string): Promise<string> {
+    // Use structured prompt builder
+    const { buildCompilerPrompt } = await import('./promptBuilder.js');
     
-    let prompt = `Analyze the following abstract transcript and propose a ${docType || 'document'} profile:\n\n`;
-    prompt += `Abstract Transcript:\n${abstractJson}\n\n`;
+    // Try to get original transcript for summaries
+    let originalTranscript: LayoutTranscript | null = null;
+    if (input.abstractTranscript.filePath && !input.abstractTranscript.filePath.startsWith('anonymized_')) {
+      try {
+        const { createTranscriptExtractor } = await import('../factory.js');
+        const extractor = createTranscriptExtractor();
+        originalTranscript = await extractor.extractTranscript(input.abstractTranscript.filePath);
+      } catch {
+        // Ignore errors - summaries will be skipped
+      }
+    }
+    
+    let prompt = buildCompilerPrompt(input.abstractTranscript, originalTranscript);
 
+    // Add context if provided
     if (input.context?.notes) {
-      prompt += `Additional context: ${input.context.notes}\n\n`;
+      prompt += `\n\n=== ADDITIONAL CONTEXT ===\n${input.context.notes}\n`;
     }
 
     if (input.context?.characteristics && input.context.characteristics.length > 0) {
-      prompt += `Known characteristics:\n${input.context.characteristics.map(c => `- ${c}`).join('\n')}\n\n`;
+      prompt += `\n\n=== KNOWN CHARACTERISTICS ===\n${input.context.characteristics.map(c => `- ${c}`).join('\n')}\n`;
     }
 
     if (previousIssues && previousIssues.length > 0) {
-      prompt += `Previous validation issues (please address these):\n${previousIssues.map(issue => `- ${issue}`).join('\n')}\n\n`;
+      prompt += `\n\n=== PREVIOUS VALIDATION ISSUES ===\n${previousIssues.map(issue => `- ${issue}`).join('\n')}\n`;
+      prompt += '\nPlease address these issues in your proposed profile.\n';
     }
-
-    prompt += `Return ONLY the JSON profile object, no markdown, no code blocks, just the JSON.`;
 
     return prompt;
   }

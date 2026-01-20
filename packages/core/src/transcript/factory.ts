@@ -33,11 +33,9 @@ export function createTranscriptExtractor(
 ): TranscriptExtractor {
   // Try preferred extractor first
   if (preferred === 'pymupdf') {
-    try {
-      return new CanonicalizingExtractor(new PyMuPDFExtractor());
-    } catch (error) {
-      // Fall through to default chain
-    }
+    const pymupdfExtractor = new PyMuPDFExtractor();
+    const pdfjsExtractor = new PDFjsExtractor();
+    return new CanonicalizingExtractor(pymupdfExtractor, pdfjsExtractor);
   }
   
   if (preferred === 'pdfjs') {
@@ -45,23 +43,33 @@ export function createTranscriptExtractor(
   }
   
   // Default fallback chain: try PyMuPDF first, then PDF.js
-  try {
-    return new CanonicalizingExtractor(new PyMuPDFExtractor());
-  } catch (error) {
-    // PyMuPDF not available, use PDF.js
-    return new CanonicalizingExtractor(new PDFjsExtractor());
-  }
+  // Create both extractors, with PDF.js as fallback
+  const pymupdfExtractor = new PyMuPDFExtractor();
+  const pdfjsExtractor = new PDFjsExtractor();
+  return new CanonicalizingExtractor(pymupdfExtractor, pdfjsExtractor);
 }
 
 /**
- * Wrapper extractor that applies canonicalization
+ * Wrapper extractor that applies canonicalization and handles fallback
  */
 class CanonicalizingExtractor implements TranscriptExtractor {
-  constructor(private extractor: TranscriptExtractor) {}
+  constructor(
+    private extractor: TranscriptExtractor,
+    private fallback?: TranscriptExtractor
+  ) {}
   
   async extractTranscript(pdfPath: string, options?: any) {
-    const rawTranscript = await this.extractor.extractTranscript(pdfPath, options);
-    return canonicalizeTranscript(rawTranscript);
+    try {
+      const rawTranscript = await this.extractor.extractTranscript(pdfPath, options);
+      return canonicalizeTranscript(rawTranscript);
+    } catch (error: any) {
+      // If this is a PyMuPDF availability error and we have a fallback, use it
+      if (this.fallback && error.message?.includes('PyMuPDF not installed')) {
+        const rawTranscript = await this.fallback.extractTranscript(pdfPath, options);
+        return canonicalizeTranscript(rawTranscript);
+      }
+      throw error;
+    }
   }
   
   getEngineInfo() {
@@ -76,7 +84,25 @@ class CanonicalizingExtractor implements TranscriptExtractor {
 /**
  * Check if PyMuPDF extractor is available
  * 
- * @returns True if PyMuPDF can be used
+ * **Advanced/Expert API**: Use this to check extractor availability before creating
+ * a transcript extractor. For most use cases, use createTranscriptExtractor() which
+ * automatically selects the best available extractor (PyMuPDF primary, PDF.js fallback).
+ * 
+ * This function is useful for advanced users who need to:
+ * - Check capabilities before processing
+ * - Implement custom extractor selection logic
+ * - Provide user feedback about available extraction backends
+ * 
+ * @returns True if PyMuPDF can be used (Python 3.8+ and PyMuPDF installed)
+ * @example
+ * ```typescript
+ * import { isPyMuPDFAvailable, createTranscriptExtractor } from '@conset-pdf/core';
+ * const hasPyMuPDF = await isPyMuPDFAvailable();
+ * if (hasPyMuPDF) {
+ *   console.log('Using high-fidelity PyMuPDF extractor');
+ * }
+ * const extractor = createTranscriptExtractor();
+ * ```
  */
 export async function isPyMuPDFAvailable(): Promise<boolean> {
   try {
@@ -92,7 +118,25 @@ export async function isPyMuPDFAvailable(): Promise<boolean> {
 /**
  * Check if PDF.js extractor is available
  * 
- * @returns True if PDF.js can be used
+ * **Advanced/Expert API**: Use this to check extractor availability before creating
+ * a transcript extractor. For most use cases, use createTranscriptExtractor() which
+ * automatically selects the best available extractor (PyMuPDF primary, PDF.js fallback).
+ * 
+ * This function is useful for advanced users who need to:
+ * - Check capabilities before processing
+ * - Implement custom extractor selection logic
+ * - Provide user feedback about available extraction backends
+ * 
+ * @returns True if PDF.js can be used (pdfjs-dist package available)
+ * @example
+ * ```typescript
+ * import { isPDFjsAvailable, createTranscriptExtractor } from '@conset-pdf/core';
+ * const hasPDFjs = await isPDFjsAvailable();
+ * if (!hasPDFjs) {
+ *   console.warn('PDF.js not available - extraction may fail');
+ * }
+ * const extractor = createTranscriptExtractor();
+ * ```
  */
 export async function isPDFjsAvailable(): Promise<boolean> {
   try {

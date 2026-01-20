@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Test script to verify /A actions work when modifying existing PDF"""
+"""
+DELETION CANDIDATE: Standalone test script (not used in production)
+
+Status: Orphaned - standalone test script, not imported or called
+Evidence:
+  - Not imported by any TypeScript/JavaScript code
+  - Not referenced in tests
+  - Manual testing script only
+
+Action: Mark for deletion - was used during development but not needed in production
+TODO: Remove after confirming no manual usage
+Tracking: Cleanup pass 2026-01-17
+"""
+
+# DELETION CANDIDATE: This file can be removed
+# Original purpose: Test script to verify /A actions work when modifying existing PDF
 
 import sys
 from pathlib import Path

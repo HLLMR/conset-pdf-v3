@@ -1,9 +1,17 @@
 /**
- * DEV-ONLY: Narrative Parser Inspection Script
+ * DELETION CANDIDATE: Dev-only inspection script
  * 
- * This script is for manual validation of narrative parsing output.
- * It is NOT part of production code and should NOT be committed.
+ * Status: Development tool, not part of production build
+ * Evidence:
+ *   - Not imported by any production code
+ *   - Not referenced in package.json scripts
+ *   - Manual inspection tool only
  * 
+ * Action: Mark for deletion - useful for development but not needed in production
+ * TODO: Remove after confirming no manual usage
+ * Tracking: Cleanup pass 2026-01-17
+ * 
+ * Original purpose: Manual validation of narrative parsing output
  * Usage: npx tsx scripts/inspect-narrative.ts
  */
 

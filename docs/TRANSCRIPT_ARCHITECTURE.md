@@ -158,7 +158,16 @@ import { sanitizeTranscript, PrivacyMode } from '@conset-pdf/core';
 
 const { abstractTranscript, tokenVault } = sanitizeTranscript(transcript, {
   privacyMode: PrivacyMode.STRICT_STRUCTURE_ONLY,
+  sampling: { maxPages: 5, includeChromeBands: true, includeHeadings: true },
 });
+
+// Abstract transcript includes:
+// - placeholderId (hash-based, stable for identical shapes)
+// - tokenShape, charClassFlags, lengthBucket (shape features)
+// - repetition metrics (repeatCountDoc, repeatRateDoc, repeatRateByBand)
+// - line grouping (page.lines with reading order)
+// - band definitions and sampling metadata
+// - coordinate system metadata
 ```
 
 ## Determinism
@@ -199,4 +208,3 @@ See `tests/transcript/` for:
 ## See Also
 
 - [MIGRATION_V3.md](./MIGRATION_V3.md) - Migration guide
-- [EXTRACTION_BACKENDS.md](./EXTRACTION_BACKENDS.md) - Backend comparison

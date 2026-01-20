@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """
-Debug script to inspect PDF outline structure and destination references.
+DELETION CANDIDATE: Debug script (not used in production)
 
-Usage:
-    python debug_outline_structure.py <pdf_path> [--limit N]
+Status: Orphaned - debug utility, not imported or called
+Evidence:
+  - Not imported by any TypeScript/JavaScript code
+  - Not referenced in tests
+  - Manual debugging script only
+
+Action: Mark for deletion - useful for manual debugging but not part of production code
+TODO: Remove after confirming no manual usage
+Tracking: Cleanup pass 2026-01-17
+
+Original purpose: Debug script to inspect PDF outline structure and destination references.
+Usage: python debug_outline_structure.py <pdf_path> [--limit N]
 """
 
 import sys

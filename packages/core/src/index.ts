@@ -153,7 +153,8 @@ export type { TextItemWithPosition } from './utils/pdf.js';
 // Export transcript system
 export type * from './transcript/types.js';
 export type * from './transcript/interfaces.js';
-export { createTranscriptExtractor, isPyMuPDFAvailable, isPDFjsAvailable } from './transcript/factory.js';
+export { createTranscriptExtractor } from './transcript/factory.js';
+export { isPyMuPDFAvailable, isPDFjsAvailable } from './transcript/factory.js';
 export { PyMuPDFExtractor } from './transcript/extractors/pymupdfExtractor.js';
 export { PDFjsExtractor } from './transcript/extractors/pdfjsExtractor.js';
 export { canonicalizeTranscript } from './transcript/canonicalize.js';
@@ -171,6 +172,12 @@ export type { ProfileValidation } from './transcript/profiles/validation.js';
 // Export abstraction (privacy layer)
 export { TokenVault } from './transcript/abstraction/tokenVault.js';
 export { sanitizeTranscript, preserveTokenShape } from './transcript/abstraction/sanitize.js';
+export { groupSpansIntoLines } from './transcript/abstraction/lineGrouping.js';
+export { computeRepetitionMetrics } from './transcript/abstraction/repetitionMetrics.js';
+export { detectCharClassFlags, getLengthBucket, generateTokenShape, generatePlaceholderId } from './transcript/abstraction/shapeFeatures.js';
+export { buildCompilerPrompt } from './transcript/ml/promptBuilder.js';
+export type { CompilerSummaries } from './transcript/ml/promptBuilder.js';
+export { PrivacyMode, TokenClass } from './transcript/abstraction/abstractTranscript.js';
 export type * from './transcript/abstraction/abstractTranscript.js';
 
 // Export schedule extraction

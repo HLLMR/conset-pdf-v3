@@ -27,6 +27,27 @@ async function getPdfJs() {
 
 /**
  * PDF.js extractor implementation (fallback)
+ * 
+ * **Advanced/Expert API**: Direct access to the PDF.js extractor implementation.
+ * For most use cases, use createTranscriptExtractor() which automatically selects
+ * the best available extractor (PyMuPDF primary, PDF.js fallback).
+ * 
+ * Use this class directly when you need:
+ * - Explicit control over which extractor to use
+ * - Fallback-only extraction (no Python dependency)
+ * - Custom extractor configuration
+ * 
+ * **Note**: PDF.js has lower bbox accuracy (15-25%) compared to PyMuPDF (95-99%).
+ * PyMuPDF is recommended for production use when available.
+ * 
+ * @example
+ * ```typescript
+ * import { PDFjsExtractor, createTranscriptExtractor } from '@conset-pdf/core';
+ * // Recommended: use factory
+ * const extractor = createTranscriptExtractor();
+ * // Advanced: use directly (fallback only)
+ * const pdfjsExtractor = new PDFjsExtractor();
+ * ```
  */
 export class PDFjsExtractor implements TranscriptExtractor {
   async extractTranscript(

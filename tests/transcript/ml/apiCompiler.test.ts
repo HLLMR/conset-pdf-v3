@@ -8,13 +8,20 @@ import type { ProfileProposalInput, LLMConfig, AbstractTranscript } from '@conse
 import { PrivacyMode } from '@conset-pdf/core';
 
 // Mock fetch for LLM API calls
-global.fetch = jest.fn() as jest.Mock;
+const mockFetch = jest.fn<typeof fetch>();
+global.fetch = mockFetch as any;
 
 describe('APIRulesetCompiler', () => {
   const mockAbstractTranscript: AbstractTranscript = {
     filePath: 'anonymized_test.pdf',
     extractionEngine: 'pymupdf',
     privacyMode: PrivacyMode.STRICT_STRUCTURE_ONLY,
+    coordinateSystem: {
+      origin: 'top-left',
+      units: 'pt',
+      yDirection: 'down',
+      rotationNormalized: true,
+    },
     pages: [
       {
         pageNumber: 1,
@@ -23,8 +30,20 @@ describe('APIRulesetCompiler', () => {
         height: 792,
         spans: [
           {
-            tokenId: 'TOKEN_001',
+            placeholderId: 'PLACEHOLDER_123456789abc',
             tokenClass: 'KEYWORD' as any,
+            tokenShape: 'AAAA',
+            charClassFlags: {
+              hasDigit: false,
+              hasAlpha: true,
+              hasUpper: true,
+              hasLower: false,
+              hasDash: false,
+              hasSlash: false,
+              hasDot: false,
+              hasPunct: false,
+            },
+            lengthBucket: '4-6',
             originalLength: 6,
             bbox: [72, 720, 200, 732],
             fontName: 'Arial',
@@ -32,6 +51,12 @@ describe('APIRulesetCompiler', () => {
             flags: { isBold: true },
             spanId: 'span_001',
             pageIndex: 0,
+            repetition: {
+              repeatCountDoc: 1,
+              repeatRateDoc: 1.0,
+              repeatPages: 1,
+              repeatRateByBand: { header: 0, footer: 0, body: 1.0 },
+            },
           },
         ],
         metadata: {
@@ -43,7 +68,7 @@ describe('APIRulesetCompiler', () => {
     metadata: {
       totalPages: 1,
       hasTrueTextLayer: true,
-      tokenCount: 1,
+      placeholderCount: 1,
     },
   };
 
@@ -53,7 +78,7 @@ describe('APIRulesetCompiler', () => {
   };
 
   beforeEach(() => {
-    (global.fetch as jest.Mock).mockClear();
+    mockFetch.mockClear();
   });
 
   it('should create compiler instance', () => {
@@ -74,10 +99,8 @@ describe('APIRulesetCompiler', () => {
   it('should throw error when API key not configured', async () => {
     const compiler = createAPIRulesetCompiler({ apiKey: undefined });
     
-    // Mock fetch to simulate missing API key
-    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('API key not configured'));
-
-    await expect(compiler.proposeSpecProfile(mockInput)).rejects.toThrow();
+    // The compiler will throw when trying to call LLM without API key
+    await expect(compiler.proposeSpecProfile(mockInput)).rejects.toThrow(/API key not configured/);
   });
 
   it('should handle LLM API errors gracefully', async () => {
@@ -87,11 +110,14 @@ describe('APIRulesetCompiler', () => {
     });
 
     // Mock fetch to return error
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
+      statusText: 'Unauthorized',
       text: async () => 'Unauthorized',
-    });
+      json: async () => ({ error: 'Unauthorized' }),
+      headers: new Headers(),
+    } as unknown as Response);
 
     await expect(compiler.proposeSpecProfile(mockInput)).rejects.toThrow(/LLM API error/);
   });
@@ -103,6 +129,8 @@ describe('APIRulesetCompiler', () => {
 
     const mockLLMResponse = {
       ok: true,
+      status: 200,
+      statusText: 'OK',
       json: async () => ({
         model: 'gpt-4',
         choices: [{
@@ -138,18 +166,24 @@ describe('APIRulesetCompiler', () => {
         }],
         usage: { total_tokens: 100 },
       }),
-    };
+      headers: new Headers(),
+      text: async () => '',
+    } as unknown as Response;
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce(mockLLMResponse);
+    mockFetch.mockResolvedValueOnce(mockLLMResponse);
 
     // Note: This will fail validation if we don't have original transcript
     // But it tests the parsing logic
+    // The test will return with validation issues (no original transcript for validation)
     const result = await compiler.proposeSpecProfile(mockInput);
     
     expect(result).toBeDefined();
     expect(result.profile).toBeDefined();
     expect(result.profile.docType).toBe('spec');
     expect(result.metadata.attempts).toBeGreaterThan(0);
+    // Validation will fail without original transcript, but parsing should work
+    expect(result.validation.valid).toBe(false);
+    expect(result.validation.issues.length).toBeGreaterThan(0);
   });
 
   it('should handle markdown code blocks in LLM response', async () => {
@@ -171,6 +205,8 @@ describe('APIRulesetCompiler', () => {
 
     const mockLLMResponse = {
       ok: true,
+      status: 200,
+      statusText: 'OK',
       json: async () => ({
         model: 'gpt-4',
         choices: [{
@@ -179,9 +215,11 @@ describe('APIRulesetCompiler', () => {
           },
         }],
       }),
-    };
+      headers: new Headers(),
+      text: async () => '',
+    } as unknown as Response;
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce(mockLLMResponse);
+    mockFetch.mockResolvedValueOnce(mockLLMResponse);
 
     const result = await compiler.proposeSpecProfile(mockInput);
     
@@ -198,6 +236,8 @@ describe('APIRulesetCompiler', () => {
     // Mock multiple LLM responses (validation will fail without original transcript)
     const mockResponse = {
       ok: true,
+      status: 200,
+      statusText: 'OK',
       json: async () => ({
         model: 'gpt-4',
         choices: [{
@@ -216,9 +256,11 @@ describe('APIRulesetCompiler', () => {
           },
         }],
       }),
-    };
+      headers: new Headers(),
+      text: async () => '',
+    } as unknown as Response;
 
-    (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+    mockFetch.mockResolvedValue(mockResponse);
 
     // Should complete without throwing (will return with validation issues)
     const result = await compiler.proposeSpecProfile(mockInput);

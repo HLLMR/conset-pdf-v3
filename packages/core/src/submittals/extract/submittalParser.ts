@@ -49,12 +49,26 @@ export function parseSubmittal(
 }
 
 /**
- * Extract fields from a packet
+ * Extract fields from a submittal packet
  * 
- * @param transcript Layout transcript
- * @param packet Packet to extract fields from
- * @param fieldPatterns Field name patterns (regex)
- * @returns Extracted fields
+ * Part of the V3 transcript system's submittal parser module. Use this to extract
+ * key-value fields from a submittal packet using regex patterns. This is a lower-level
+ * API compared to parseSubmittal() - use this when you need fine-grained control over
+ * field extraction patterns.
+ * 
+ * @param transcript Layout transcript (from createTranscriptExtractor())
+ * @param packet Submittal packet to extract fields from
+ * @param fieldPatterns Field name patterns (regex with optional bbox constraints)
+ * @returns Extracted fields with confidence scores
+ * @example
+ * ```typescript
+ * import { parseSubmittal, extractPacketFields } from '@conset-pdf/core';
+ * const packets = parseSubmittal(transcript);
+ * const fields = extractPacketFields(transcript, packets[0], {
+ *   modelNumber: { regex: 'Model[\\s:]+([A-Z0-9-]+)' },
+ *   serialNumber: { regex: 'Serial[\\s:]+([A-Z0-9-]+)' }
+ * });
+ * ```
  */
 export function extractPacketFields(
   transcript: LayoutTranscript,
@@ -102,11 +116,22 @@ export function extractPacketFields(
 }
 
 /**
- * Extract tables from a packet
+ * Extract tables from a submittal packet
  * 
- * @param transcript Layout transcript
- * @param packet Packet to extract tables from
- * @returns Extracted tables
+ * Part of the V3 transcript system's submittal parser module. Use this to extract
+ * performance tables and other structured data from a submittal packet. This is a
+ * lower-level API compared to parseSubmittal() - use this when you need direct access
+ * to table extraction functionality.
+ * 
+ * @param transcript Layout transcript (from createTranscriptExtractor())
+ * @param packet Submittal packet to extract tables from
+ * @returns Extracted tables with column/row structure
+ * @example
+ * ```typescript
+ * import { parseSubmittal, extractPacketTables } from '@conset-pdf/core';
+ * const packets = parseSubmittal(transcript);
+ * const tables = await extractPacketTables(transcript, packets[0]);
+ * ```
  */
 export async function extractPacketTables(
   transcript: LayoutTranscript,

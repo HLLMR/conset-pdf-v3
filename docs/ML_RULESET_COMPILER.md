@@ -4,6 +4,8 @@
 
 The ML Ruleset Compiler provides **ML-assisted profile generation** from abstract transcripts. It uses LLM APIs to automatically propose extraction profiles for specification documents, drawing templates, and equipment submittals.
 
+**Note**: The compiler has been significantly improved with structured prompts, shape-based placeholders, repetition metrics, and line grouping. These improvements are integrated into the current implementation.
+
 ## Architecture
 
 ### Compile-Validate Loop

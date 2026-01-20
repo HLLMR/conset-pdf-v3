@@ -1,45 +1,33 @@
 /**
- * Proof spike test for bookmark writing via sidecar
+ * DELETION CANDIDATE: Proof spike test (placeholder, not implemented)
  * 
- * This test validates that the Python sidecar can write bookmarks
- * that are correctly read back by DocumentContext/pdfjs.
+ * Status: Placeholder test with TODOs, never implemented
+ * Evidence:
+ *   - All test code is commented out
+ *   - Tests just assert `expect(true).toBe(true)`
+ *   - TODOs indicate implementation never completed
  * 
- * Success criteria:
- * - Sidecar must pass re-read validation
- * - At least two independent parsers must agree on structure
+ * Action: Mark for deletion - proof spike was completed via integration tests
+ *   - bookmarkViewerCompatibility.test.ts covers sidecar validation
+ *   - bookmarkCorrectness.test.ts covers re-read validation
+ * 
+ * TODO: Remove this file after confirming no value
+ * Tracking: Cleanup pass 2026-01-17
  */
 
 import { describe, it, expect } from '@jest/globals';
-// TODO: Uncomment when implementing full proof spike test
-// import { PDFDocument } from 'pdf-lib';
-// import { DocumentContext } from '../../analyze/documentContext.js';
-// import { readBookmarks } from '../reader.js';
-// import * as fs from 'fs/promises';
-// import * as path from 'path';
-// import * as os from 'os';
 
 describe('Bookmark Writing Proof Spike', () => {
-  it('should write and read bookmarks via sidecar', async () => {
-    // This is a placeholder test structure
-    // Actual implementation requires:
-    // 1. Create minimal PDF (or use fixture)
-    // 2. Build simple bookmark tree JSON (3-4 bookmarks, 2 levels)
-    // 3. Invoke sidecar writer to write bookmarks
-    // 4. Re-read bookmarks using DocumentContext/pdfjs
-    // 5. Verify structure and destinations match expected
-    
-    // For now, skip the test (manual validation required)
-    // TODO: Implement full proof spike test
+  it.skip('DELETION CANDIDATE: Placeholder test - proof spike completed via integration tests', async () => {
+    // Proof spike validation is covered by:
+    // - bookmarkViewerCompatibility.test.ts
+    // - bookmarkCorrectness.test.ts
+    // This placeholder can be deleted
     expect(true).toBe(true);
   });
   
-  it('should validate bookmark structure after write', async () => {
-    // Placeholder for structural validation
-    // - Bookmark counts must match expected
-    // - Titles must match expected
-    // - Hierarchy levels must match expected
-    // - Destination page indices must resolve correctly
-    
+  it.skip('DELETION CANDIDATE: Placeholder test - proof spike completed via integration tests', async () => {
+    // Proof spike validation is covered by integration tests
     expect(true).toBe(true);
   });
 });
