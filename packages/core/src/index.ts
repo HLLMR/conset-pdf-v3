@@ -98,6 +98,7 @@ export type * from './layout/types.js';
 
 // Export locators
 export { RoiSheetLocator } from './locators/roiSheetLocator.js';
+export { RoiSpecsSectionLocator } from './locators/roiSpecsSectionLocator.js';
 export { LegacyTitleblockLocator } from './locators/legacyTitleblockLocator.js';
 export { CompositeLocator } from './locators/compositeLocator.js';
 export { SpecsSectionLocator } from './locators/specsSectionLocator.js';
