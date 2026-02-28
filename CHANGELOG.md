@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to conset-pdf will be documented in this file.
+All notable changes to conset-pdf-v3 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite and architecture invariant checks
 
 ### Changed
-- **Repository Structure**: Separated GUI into independent repository ([conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui))
+- **Repository Structure**: Separated GUI into independent repository ([conset-pdf-v3-gui](https://github.com/HLLMR/conset-pdf-v3-gui))
 - **Dependencies**: Updated pdfjs-dist from 3.11.174 to 5.4.530 for security and Node.js compatibility
 - **Node.js Compatibility**: Updated to use pdfjs-dist legacy build for Node.js environments
 

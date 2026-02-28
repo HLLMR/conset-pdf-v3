@@ -1,4 +1,4 @@
-# conset-pdf
+# conset-pdf-v3
 
 Core library and CLI for building "latest-and-greatest" construction document sets. A construction-focused PDF workflow tool that provides APIs for merging addenda, splitting sets, detecting sheet IDs, and assembling documents.
 
@@ -393,7 +393,7 @@ conset-pdf/
 
 ## Related Projects
 
-- **[conset-pdf-gui](https://github.com/HLLMR/conset-pdf-gui)** - Electron GUI (uses `@conset-pdf/core`)
+- **[conset-pdf-v3-gui](https://github.com/HLLMR/conset-pdf-v3-gui)** - Electron GUI (uses `@conset-pdf/core`)
 
 ## License
 
