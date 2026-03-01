@@ -19,6 +19,7 @@ export const UDS_DESIGNATORS: Record<
 > = {
   G: { canonical4: 'GENR', displayName: 'General' },
   C: { canonical4: 'CIVL', displayName: 'Civil' }, // Ambiguous - may be CTRL
+  D: { canonical4: 'DEMO', displayName: 'Demolition' },
   L: { canonical4: 'LAND', displayName: 'Landscape' },
   A: { canonical4: 'ARCH', displayName: 'Architectural' },
   I: { canonical4: 'INTR', displayName: 'Interiors' },
@@ -26,7 +27,7 @@ export const UDS_DESIGNATORS: Record<
   M: { canonical4: 'MECH', displayName: 'Mechanical' },
   P: { canonical4: 'PLUM', displayName: 'Plumbing' },
   E: { canonical4: 'ELEC', displayName: 'Electrical' },
-  F: { canonical4: 'FIRE', displayName: 'Fire Protection' },
+  F: { canonical4: 'FIRP', displayName: 'Fire Protection' },
   T: { canonical4: 'TECH', displayName: 'Technology' },
 };
 
@@ -42,8 +43,8 @@ export const ALIAS_MAPPINGS: Array<{
   basis: StandardsBasis;
 }> = [
   // Fire Protection aliases
-  { alias: 'FP', canonical4: 'FIRE', displayName: 'Fire Protection', designator: 'F', confidence: 0.95, basis: 'ALIAS' },
-  { alias: 'FA', canonical4: 'FIRE', displayName: 'Fire Alarm', designator: 'F', confidence: 0.85, basis: 'ALIAS' },
+  { alias: 'FP', canonical4: 'FIRP', displayName: 'Fire Protection', designator: 'F', confidence: 0.95, basis: 'ALIAS' },
+  { alias: 'FA', canonical4: 'FIRA', displayName: 'Fire Alarm', designator: 'F', confidence: 0.95, basis: 'ALIAS' },
   
   // Controls aliases
   { alias: 'DDC', canonical4: 'CTRL', displayName: 'Direct Digital Controls', designator: null, confidence: 0.95, basis: 'ALIAS' },

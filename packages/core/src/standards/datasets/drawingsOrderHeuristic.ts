@@ -22,8 +22,10 @@ export const DISCIPLINE_ORDER: Record<DisciplineCanonical4, number> = {
   STRU: 60, // Structural
   MECH: 70, // Mechanical
   PLUM: 80, // Plumbing
-  FIRE: 90, // Fire Protection
-  ELEC: 100, // Electrical
+  FIRP: 75, // Fire Protection (typically sprinkler / plumbing-adjacent)
+  ELEC: 90, // Electrical
+  FIRA: 95, // Fire Alarm (electrical-adjacent)
+  FIRE: 100, // Legacy Fire (fallback/back-compat)
   TECH: 110, // Technology / Low voltage
   CTRL: 120, // Controls
   VEND: 130, // Vendor/deferred

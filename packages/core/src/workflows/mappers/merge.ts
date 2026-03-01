@@ -102,6 +102,7 @@ export function mapParseInventoryToInventoryRows(
 
     const row: InventoryRowBase & {
       normalizedId?: string;
+      title?: string;
       discipline?: DrawingsDisciplineMeta;
       specs?: SpecsMasterformatMeta;
     } = {
@@ -112,8 +113,9 @@ export function mapParseInventoryToInventoryRows(
       source: item.source,
       notes: item.warning || item.context,
       tags: item.source ? [item.source] : undefined,
-      // Extend with normalizedId (not in base type, but used by merge workflow)
+      // Extend with normalizedId and title (not in base type, but used by merge workflow)
       ...(normalizedId ? { normalizedId } : {}),
+      ...(item.title ? { title: item.title } : {}),
     };
 
     // Add discipline metadata for drawings docType only

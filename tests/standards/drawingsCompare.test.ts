@@ -140,7 +140,7 @@ describe('Drawings Row Comparison', () => {
     expect(rows[1].discipline).toBeNull();
   });
 
-  test('full heuristic ordering: GENR, SURV, CIVL, LAND, ARCH, STRU, MECH, PLUM, FIRE, ELEC, TECH, CTRL, UNKN', () => {
+  test('full heuristic ordering: GENR, SURV, CIVL, LAND, ARCH, STRU, MECH, FIRP, PLUM, ELEC, FIRA, TECH, CTRL, UNKN', () => {
     const disciplines: Array<{ canonical4: string; order: number }> = [
       { canonical4: 'GENR', order: 10 },
       { canonical4: 'SURV', order: 20 },
@@ -149,9 +149,10 @@ describe('Drawings Row Comparison', () => {
       { canonical4: 'ARCH', order: 50 },
       { canonical4: 'STRU', order: 60 },
       { canonical4: 'MECH', order: 70 },
+      { canonical4: 'FIRP', order: 75 },
       { canonical4: 'PLUM', order: 80 },
-      { canonical4: 'FIRE', order: 90 },
-      { canonical4: 'ELEC', order: 100 },
+      { canonical4: 'ELEC', order: 90 },
+      { canonical4: 'FIRA', order: 95 },
       { canonical4: 'TECH', order: 110 },
       { canonical4: 'CTRL', order: 120 },
       { canonical4: 'UNKN', order: 999 },

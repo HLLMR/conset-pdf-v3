@@ -12,6 +12,7 @@ import type {
   CorrectionPatch,
 } from './types.js';
 import type { InventoryResult, InventoryRowBase } from '../workflows/types.js';
+import { normalizeSheetId, normalizeSpecSectionId } from './normalize.js';
 
 /**
  * Options for validation
@@ -138,6 +139,207 @@ function createHash(obj: unknown): string {
 }
 
 /**
+ * Extract all ID-like patterns from text
+ * Matches patterns like: A-101, A101, DG1.1, G1.11, 230200, 23 02 00
+ */
+function extractIdsFromText(text: string): string[] {
+  // Match sequences that look like sheet or spec IDs
+  // Patterns: Letters followed by numbers, possibly with separators
+  const idPattern = /\b[A-Z]{1,3}[\s.\-]?\d+[\s.\-]?\d*[A-Z]?\b/gi;
+  const matches = text.match(idPattern) || [];
+  
+  const normalized: string[] = [];
+  for (const match of matches) {
+    // Try normalizing as sheet ID first, then spec section ID
+    const asSheet = normalizeSheetId(match);
+    if (asSheet) {
+      normalized.push(asSheet);
+      continue;
+    }
+    
+    const asSpec = normalizeSpecSectionId(match);
+    if (asSpec) {
+      normalized.push(asSpec);
+      continue;
+    }
+  }
+  
+  return [...new Set(normalized)]; // Deduplicate
+}
+
+/**
+ * Apply line-based set-membership matching
+ * 
+ * Hard logic for each line: Extract all IDs and classify against inventories:
+ * - ONE ID: Single match (in one, not other) → pending for context
+ * - ONE ID: Double match (in both) → Replace
+ * - TWO IDs: One addendum + one original → Rename (addendum replaces original)
+ * 
+ * Returns high-confidence suggestions without fuzzy matching.
+ */
+function applyLineBasedMatching(
+  narrative: NarrativeInstructionSet,
+  inventory: InventoryResult
+): CorrectionPatch[] {
+  const suggestions: CorrectionPatch[] = [];
+
+  // Build sets for quick lookup
+  const addendumIds = new Set<string>();
+  const originalIds = new Set<string>();
+  const originalIdMap = new Map<string, InventoryRowBase & { normalizedId?: string }>();
+
+  // Collect all addendum IDs (both sheets and specs)
+  for (const drawing of narrative.drawings) {
+    addendumIds.add(drawing.sheetIdNormalized);
+  }
+  for (const spec of narrative.specs) {
+    addendumIds.add(spec.sectionIdNormalized);
+  }
+
+  // Collect all original IDs from inventory
+  for (const row of inventory.rows) {
+    const normalizedId = (row as any).normalizedId;
+    if (normalizedId) {
+      originalIds.add(normalizedId);
+      originalIdMap.set(normalizedId, row as InventoryRowBase & { normalizedId?: string });
+    }
+  }
+
+  // Build list of all instructions with their metadata, in order
+  interface InstructionLine {
+    id: string;
+    rawText: string;
+    type: 'sheet' | 'spec';
+    notes?: string[]; // Notes from narrative (e.g., "Formerly named...")
+  }
+
+  const instructions: InstructionLine[] = [];
+
+  for (const drawing of narrative.drawings) {
+    instructions.push({
+      id: drawing.sheetIdNormalized,
+      rawText: drawing.evidence.rawLine,
+      type: 'sheet',
+      notes: drawing.notes,
+    });
+  }
+
+  for (const spec of narrative.specs) {
+    instructions.push({
+      id: spec.sectionIdNormalized,
+      rawText: spec.evidence.rawBlock,
+      type: 'spec',
+    });
+  }
+
+  let pendingAddendumId: string | undefined;
+  let pendingType: 'sheet' | 'spec' | undefined;
+
+  for (let i = 0; i < instructions.length; i++) {
+    const instruction = instructions[i];
+    
+    // Extract IDs from both the main text AND any notes
+    let extractedIds = extractIdsFromText(instruction.rawText);
+    
+    // Also extract IDs from notes (e.g., "a. Formerly named DG1.1")
+    if (instruction.notes) {
+      for (const note of instruction.notes) {
+        const noteIds = extractIdsFromText(note);
+        extractedIds.push(...noteIds);
+      }
+    }
+    
+    // Deduplicate IDs
+    extractedIds = [...new Set(extractedIds)];
+
+    // Skip if no IDs found
+    if (extractedIds.length === 0) {
+      continue;
+    }
+
+    // === Case: ONE ID ===
+    if (extractedIds.length === 1) {
+      const id = extractedIds[0];
+      const inAddendum = addendumIds.has(id);
+      const inOriginal = originalIds.has(id);
+
+      // Double match: exists in both inventories → Replace (just a revision)
+      if (inAddendum && inOriginal) {
+        // No suggestion needed - standard revision
+        pendingAddendumId = undefined;
+        pendingType = undefined;
+      }
+      // Single match in addendum only → pending for next-line context
+      else if (inAddendum && !inOriginal) {
+        pendingAddendumId = id;
+        pendingType = instruction.type;
+      }
+      // Single match in original only, with pending addendum → link them
+      else if (!inAddendum && inOriginal && pendingAddendumId) {
+        const origRow = originalIdMap.get(id)!;
+        suggestions.push({
+          type: pendingType === 'sheet' ? 'sheet' : 'specSection',
+          narrativeIdNormalized: pendingAddendumId,
+          suggestedRowId: origRow.id,
+          reason: 'context_match',
+          explanation: `${pendingType} ID "${pendingAddendumId}" from previous line linked to original ID "${id}"`,
+        });
+        pendingAddendumId = undefined;
+        pendingType = undefined;
+      }
+      // Single match in original only, no pending → just context
+      else if (!inAddendum && inOriginal) {
+        pendingAddendumId = undefined;
+        pendingType = undefined;
+      }
+      // No match in either → skip
+      else {
+        pendingAddendumId = undefined;
+        pendingType = undefined;
+      }
+    }
+
+    // === Case: TWO IDs ===
+    else if (extractedIds.length === 2) {
+      const [id1, id2] = extractedIds;
+      const id1InAddendum = addendumIds.has(id1);
+      const id1InOriginal = originalIds.has(id1);
+      const id2InAddendum = addendumIds.has(id2);
+      const id2InOriginal = originalIds.has(id2);
+
+      // Pattern: one addendum + one original → Rename
+      if (
+        (id1InAddendum && !id1InOriginal && !id2InAddendum && id2InOriginal) ||
+        (!id1InAddendum && id1InOriginal && id2InAddendum && !id2InOriginal)
+      ) {
+        const addendumId = id1InAddendum ? id1 : id2;
+        const originalId = id1InOriginal ? id1 : id2;
+        const origRow = originalIdMap.get(originalId)!;
+
+        suggestions.push({
+          type: instruction.type === 'sheet' ? 'sheet' : 'specSection',
+          narrativeIdNormalized: addendumId,
+          suggestedRowId: origRow.id,
+          reason: 'two_id_match',
+          explanation: `Line contains addendum ID "${addendumId}" and original ID "${originalId}" → rename`,
+        });
+      }
+
+      pendingAddendumId = undefined;
+      pendingType = undefined;
+    }
+
+    // More than two IDs: too ambiguous, skip
+    else {
+      pendingAddendumId = undefined;
+      pendingType = undefined;
+    }
+  }
+
+  return suggestions;
+}
+
+/**
  * Validate narrative instructions against inventory
  * 
  * @param narrative - Parsed narrative instruction set
@@ -154,6 +356,18 @@ export function validateNarrativeAgainstInventory(
   const nearMatchThreshold = opts?.nearMatchThreshold ?? 0.75;
   const issues: NarrativeIssue[] = [];
   const suggestedCorrections: CorrectionPatch[] = [];
+
+  // Step 1: Apply line-based hard logic matching
+  // This uses set-membership logic to find high-confidence matches
+  // without fuzzy matching
+  const lineBasedSuggestions = applyLineBasedMatching(narrative, inventory);
+  suggestedCorrections.push(...lineBasedSuggestions);
+
+  // Track which narrative IDs were already resolved by line-based matching
+  const resolvedByLineLogic = new Set<string>();
+  for (const suggestion of lineBasedSuggestions) {
+    resolvedByLineLogic.add(suggestion.narrativeIdNormalized);
+  }
 
   // Build lookup maps from inventory rows
   // Separate by type: drawings (sheets) vs specs
@@ -189,9 +403,16 @@ export function validateNarrativeAgainstInventory(
     exactMatchMap.set(normalizedId, existing);
   }
 
-  // Validate drawing instructions
+  // Step 2: Validate drawing instructions (fall back to fuzzy matching if not resolved)
   for (const drawing of narrative.drawings) {
     const normalizedId = drawing.sheetIdNormalized;
+
+    // Skip if already resolved by line-based logic
+    if (resolvedByLineLogic.has(normalizedId)) {
+      // Silent success - already have a suggestion
+      continue;
+    }
+
     const exactMatches = exactMatchMap.get(normalizedId) || [];
 
     if (exactMatches.length === 0) {
@@ -263,9 +484,16 @@ export function validateNarrativeAgainstInventory(
     // If exactly one match, no issue (silent success)
   }
 
-  // Validate spec instructions
+  // Step 3: Validate spec instructions (fall back to fuzzy matching if not resolved)
   for (const spec of narrative.specs) {
     const normalizedId = spec.sectionIdNormalized;
+
+    // Skip if already resolved by line-based logic
+    if (resolvedByLineLogic.has(normalizedId)) {
+      // Silent success - already have a suggestion
+      continue;
+    }
+
     const exactMatches = exactMatchMap.get(normalizedId) || [];
 
     if (exactMatches.length === 0) {

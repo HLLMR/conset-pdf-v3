@@ -418,4 +418,87 @@ describe('Narrative Validation', () => {
       expect(suggestion.suggestedRowId).toBe('row1');
     });
   });
+
+  describe('Line-based hard matching logic', () => {
+    test('same-line matching: addendum ID + original ID on same line', () => {
+      // Narrative: Sheet G1.11 on same line as DG1.1
+      const narrative = createNarrative([
+        { raw: 'G1.11', normalized: 'G1.11' }
+      ]);
+      // Modify evidence to have both IDs on same line (simulating "G1.11 replaces DG1.1")
+      narrative.drawings[0].evidence.rawLine = '2. SHEET - G1.11 REFLECTED CEILING PLAN (formerly DG1.1)';
+      
+      // Inventory: DG1.1 exists in original
+      const inventory = createInventory([
+        { id: 'orig-row', normalizedId: 'DG1.1' }
+      ]);
+
+      const report = validateNarrativeAgainstInventory(narrative, inventory);
+
+      // Should produce a suggestion from two-ID matching
+      expect(report.suggestedCorrections).toBeDefined();
+      expect(report.suggestedCorrections!.length).toBeGreaterThanOrEqual(1);
+      
+      const twoIdMatch = report.suggestedCorrections!.find(
+        s => s.reason === 'two_id_match'
+      );
+      expect(twoIdMatch).toBeDefined();
+      expect(twoIdMatch!.narrativeIdNormalized).toBe('G1.11');
+      expect(twoIdMatch!.suggestedRowId).toBe('orig-row');
+    });
+
+    test('notes matching: original ID in notes array (Formerly named)', () => {
+      // Narrative: Sheet G1.11 with notes containing the original ID
+      const narrative = createNarrative([
+        { raw: 'G1.11', normalized: 'G1.11' }
+      ]);
+      // Add notes containing the original ID
+      narrative.drawings[0].notes = ['a. Formerly named DG1.1'];
+      narrative.drawings[0].evidence.rawLine = '2. SHEET - G1.11 REFLECTED CEILING PLAN - LEVEL 1 - DEMOLITION';
+      
+      // Inventory: DG1.1 exists in original
+      const inventory = createInventory([
+        { id: 'orig-row', normalizedId: 'DG1.1' }
+      ]);
+
+      const report = validateNarrativeAgainstInventory(narrative, inventory);
+
+      // Should produce a suggestion from two-ID matching (rawText has G1.11, notes have DG1.1)
+      expect(report.suggestedCorrections).toBeDefined();
+      expect(report.suggestedCorrections!.length).toBeGreaterThanOrEqual(1);
+      
+      const twoIdMatch = report.suggestedCorrections!.find(
+        s => s.reason === 'two_id_match'
+      );
+      expect(twoIdMatch).toBeDefined();
+      expect(twoIdMatch!.narrativeIdNormalized).toBe('G1.11');
+      expect(twoIdMatch!.suggestedRowId).toBe('orig-row');
+    });
+
+    test('no match when unresolved addendum has no next-line context', () => {
+      // Narrative: Only one sheet, no original match anywhere
+      const narrative = createNarrative([
+        { raw: 'A-101-NEW', normalized: 'A-101-NEW' }
+      ]);
+      narrative.drawings[0].evidence.rawLine = '3. SHEET - A-101-NEW NEW LAYOUT';
+
+      // Inventory: No matching original
+      const inventory = createInventory([]);
+
+      const report = validateNarrativeAgainstInventory(narrative, inventory);
+
+      // Should NOT produce a suggestion (no match found)
+      expect(report.suggestedCorrections).toBeUndefined();
+      
+      // Should have a NOT_FOUND issue
+      expect(report.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'NARR_SHEET_NOT_FOUND',
+          ref: expect.objectContaining({
+            idNormalized: 'A-101-NEW',
+          }),
+        })
+      );
+    });
+  });
 });

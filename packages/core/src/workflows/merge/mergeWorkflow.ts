@@ -27,7 +27,8 @@ import {
   CompositeLocator,
   SpecsSectionLocator,
 } from '../../index.js';
-import type { SheetLocator } from '../../locators/sheetLocator.js';
+import type { SheetLocator, SheetLocationResult } from '../../locators/sheetLocator.js';
+import type { PageContext } from '../../analyze/pageContext.js';
 import {
   extractNarrativeTextFromPdf,
   parseNarrativeAlgorithmic,
@@ -58,6 +59,67 @@ function createLocator(
 
   return legacyLocator;
 }
+
+/**
+ * Wrapper locator that applies corrections to detected IDs
+ * Maps page indexes to corrected normalized IDs
+ * 
+ * Phase 2 Feature: When user accepts narrative-generated suggestions or manually
+ * corrects IDs, the merge operation uses the corrected IDs instead of detected ones.
+ * This allows the narrative PDF to guide the merge logic directly.
+ */
+class CorrectionApplyingLocator implements SheetLocator {
+  private innerLocator: SheetLocator;
+  private currentDocIndex: number = 0;
+  private lastPageIndex: number = -1;
+  private correctionMap: Map<string, string>; // key: "docIndex:pageIndex" -> correctedNormalizedId
+  private verbose: boolean;
+
+  constructor(
+    innerLocator: SheetLocator,
+    correctionMap: Map<string, string>,
+    verbose: boolean = false
+  ) {
+    this.innerLocator = innerLocator;
+    this.correctionMap = correctionMap;
+    this.verbose = verbose;
+  }
+
+  async locate(page: PageContext): Promise<SheetLocationResult> {
+    const result = await this.innerLocator.locate(page);
+
+    // Detect transition to next document: page index resets to 0 in planner loops
+    if (page.pageIndex < this.lastPageIndex) {
+      this.currentDocIndex += 1;
+    }
+    this.lastPageIndex = page.pageIndex;
+
+    const correctionKey = `${this.currentDocIndex}:${page.pageIndex}`;
+
+    // Check if we have a correction for this page
+    const correctedId = this.correctionMap.get(correctionKey);
+    if (correctedId) {
+      const original = result.normalizedId || result.id;
+      if (this.verbose) {
+        console.log(
+          `[Corrections] ${correctionKey}: Applying correction "${original}" -> "${correctedId}"`
+        );
+      }
+      return {
+        ...result,
+        id: correctedId,
+        normalizedId: correctedId,
+      };
+    }
+
+    return result;
+  }
+
+  getName(): string {
+    return `CorrectionApplying(${this.innerLocator.getName()})`;
+  }
+}
+
 
 /**
  * Merge workflow implementation
@@ -282,6 +344,11 @@ export const mergeWorkflowImpl: WorkflowImpl<
 
   /**
    * Execute merge operation
+   * 
+   * Phase 2: Now supports narrative-driven corrections
+   * If corrections are provided (from narrative validation or manual fixes),
+   * the merge uses corrected IDs instead of auto-detected IDs.
+   * This allows the narrative PDF to directly guide the merge logic.
    */
   async execute(input: MergeExecuteInput): Promise<ExecuteResult> {
     const {
@@ -295,8 +362,105 @@ export const mergeWorkflowImpl: WorkflowImpl<
       corrections,
     } = input;
 
-    // Create locator
-    const locator = createLocator(docType, profile, originalPdfPath);
+    const verbose = options.verbose || false;
+
+    // Create base locator
+    let locator = createLocator(docType, profile, originalPdfPath);
+
+    // Apply corrections if provided
+    if (corrections && Object.keys(corrections.overrides || {}).length > 0) {
+      if (verbose) {
+        console.log(`[Merge Execute] Applying corrections to merge operation`);
+      }
+
+      // Get analyzed inventory (either from provided plan or re-analyze)
+      let correctedInventory: InventoryResult;
+      
+      if (analyzed?.plan) {
+        // If plan is provided, we still need the inventory for corrections
+        // Re-analyze to get the inventory rows
+        const analyzeInput: MergeAnalyzeInput = {
+          docType,
+          originalPdfPath,
+          addendumPdfPaths,
+          profile,
+          options,
+        };
+        correctedInventory = await this.applyCorrections(
+          analyzeInput,
+          {} as any, // Placeholder, not used in applyCorrections
+          corrections
+        );
+      } else {
+        // No plan provided, re-analyze with corrections
+        const analyzeInput: MergeAnalyzeInput = {
+          docType,
+          originalPdfPath,
+          addendumPdfPaths,
+          profile,
+          options,
+        };
+        correctedInventory = await this.applyCorrections(
+          analyzeInput,
+          {} as any, // Placeholder, not used in applyCorrections
+          corrections
+        );
+      }
+
+      // Build correction map using planner-like ordering across docs.
+      // Key format: "docIndex:pageIndex"
+      const ignoredRowIds = new Set(corrections.ignoredRowIds || []);
+      const pageIndexToCorrectedId = new Map<string, string>();
+
+      let currentDocIndex = 0;
+      let lastPageIndex = -1;
+
+      correctedInventory.rows.forEach(row => {
+        const page = (row.page ?? 1) - 1;
+        if (page < 0) return;
+
+        if (page < lastPageIndex) {
+          currentDocIndex += 1;
+        }
+        lastPageIndex = page;
+
+        if (ignoredRowIds.has(row.id)) {
+          return;
+        }
+
+        const correctedId = String((row as any).normalizedId || '').trim();
+        if (!correctedId) {
+          return;
+        }
+
+        const stableIdParts = String(row.id || '').split(':');
+        const originallyDetectedId = String(stableIdParts[stableIdParts.length - 1] || '').trim();
+
+        // Only apply if user changed the ID from original detection
+        if (originallyDetectedId && originallyDetectedId === correctedId) {
+          return;
+        }
+
+        const key = `${currentDocIndex}:${page}`;
+        pageIndexToCorrectedId.set(key, correctedId);
+      });
+
+      if (verbose) {
+        console.log(
+          `[Merge Execute] Built correction map with ${pageIndexToCorrectedId.size} page corrections`
+        );
+        pageIndexToCorrectedId.forEach((correctedId, key) => {
+          console.log(`  ${key}: -> "${correctedId}"`);
+        });
+      }
+
+      // Wrap locator with corrections
+      locator = new CorrectionApplyingLocator(
+        locator,
+        pageIndexToCorrectedId,
+        verbose
+      );
+    }
 
     // Build merge options
     const mergeOptions: MergeAddendaOptions = {
@@ -307,22 +471,13 @@ export const mergeWorkflowImpl: WorkflowImpl<
       mode: options.mode || 'replace+insert',
       strict: options.strict || false,
       dryRun: false, // Always execute
-      verbose: options.verbose || false,
+      verbose: verbose,
       reportPath: options.reportPath,
       regenerateBookmarks: options.regenerateBookmarks || false,
       inventoryOutputDir: options.inventoryOutputDir,
-      locator,
+      locator, // Use original or correction-wrapped locator
       patterns: options.patterns,
     };
-
-    // Phase 1: Ignore analyzed.plan and corrections for optimization
-    // (They're accepted but not used yet)
-    if (analyzed?.plan) {
-      // Could optimize by reusing plan, but for Phase 1 we re-analyze for correctness
-    }
-    if (corrections) {
-      // Corrections not applied in Phase 1
-    }
 
     // Execute merge
     const report: MergeReport = await mergeAddenda(mergeOptions);

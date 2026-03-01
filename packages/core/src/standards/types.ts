@@ -17,6 +17,8 @@ export type DisciplineCanonical4 =
   | 'STRU'
   | 'MECH'
   | 'PLUM'
+  | 'FIRP'
+  | 'FIRA'
   | 'FIRE'
   | 'ELEC'
   | 'TECH'

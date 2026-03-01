@@ -66,12 +66,22 @@ describe('Drawings Discipline Normalization', () => {
       expect(result.basis).toBe('UDS');
     });
 
-    test('FP-101 => FIRE, basis ALIAS', () => {
+    test('FP-101 => FIRP, basis ALIAS', () => {
       const result = normalizeDrawingsDiscipline({ normalizedId: 'FP-101' });
-      expect(result.canonical4).toBe('FIRE');
+      expect(result.canonical4).toBe('FIRP');
       expect(result.designator).toBe('F');
       expect(result.alias).toBe('FP');
       expect(result.displayName).toBe('Fire Protection');
+      expect(result.basis).toBe('ALIAS');
+      expect(result.confidence).toBeGreaterThan(0.9);
+    });
+
+    test('FA-101 => FIRA, basis ALIAS', () => {
+      const result = normalizeDrawingsDiscipline({ normalizedId: 'FA-101' });
+      expect(result.canonical4).toBe('FIRA');
+      expect(result.designator).toBe('F');
+      expect(result.alias).toBe('FA');
+      expect(result.displayName).toBe('Fire Alarm');
       expect(result.basis).toBe('ALIAS');
       expect(result.confidence).toBeGreaterThan(0.9);
     });
