@@ -126,7 +126,7 @@ describe('Core Behaviors', () => {
     
     // Result should have expected structure
     expect(result).toHaveProperty('id');
-    expect(result).toHaveProperty('normalizedId');
+    expect(result).toHaveProperty('sheetIdNormalized');
     expect(result).toHaveProperty('confidence');
     expect(result).toHaveProperty('method');
     expect(result).toHaveProperty('warnings');
@@ -154,7 +154,7 @@ describe('Core Behaviors', () => {
     
     // Result structure
     expect(result).toHaveProperty('id');
-    expect(result).toHaveProperty('normalizedId');
+    expect(result).toHaveProperty('sheetIdNormalized');
     expect(result).toHaveProperty('confidence');
     expect(result).toHaveProperty('method');
     expect(result).toHaveProperty('warnings');
@@ -214,7 +214,7 @@ describe('Core Behaviors', () => {
       
       // Should find section ID
       expect(result.id).toBeDefined();
-      expect(result.normalizedId).toBeDefined();
+      expect(result.sectionIdNormalized).toBeDefined();
       
       // Verify same PageContext instance is reused
       const pageContext2 = await docContext.getPageContext(0);

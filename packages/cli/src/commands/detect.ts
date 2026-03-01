@@ -99,6 +99,9 @@ export function detectCommand(program: Command) {
 
           const pageContext = await docContext.getPageContext(pageIndex);
           const result = await locator.locate(pageContext);
+          const normalizedId = options.type === 'specs'
+            ? (result.sectionIdNormalized || result.id)
+            : (result.sheetIdNormalized || result.id);
 
           // Extract failure reason from warnings/context
           let failureReason: string | undefined;
@@ -133,7 +136,7 @@ export function detectCommand(program: Command) {
               ? {
                   found: true,
                   value: result.id,
-                  normalized: result.normalizedId,
+                  normalized: normalizedId,
                   confidence: result.confidence,
                   method: result.method,
                 }
@@ -159,7 +162,7 @@ export function detectCommand(program: Command) {
           if (options.verbose) {
             console.log(`\nPage ${pageIndex + 1}:`);
             if (result.id) {
-              console.log(`  ✓ Sheet ID: "${result.id}" -> "${result.normalizedId}" (confidence: ${result.confidence.toFixed(2)}, method: ${result.method})`);
+              console.log(`  ✓ Sheet ID: "${result.id}" -> "${normalizedId}" (confidence: ${result.confidence.toFixed(2)}, method: ${result.method})`);
               if (result.title) {
                 console.log(`  ✓ Title: "${result.title}"`);
               }

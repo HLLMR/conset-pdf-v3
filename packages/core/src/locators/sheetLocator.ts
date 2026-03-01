@@ -5,7 +5,8 @@ import type { PageContext } from '../analyze/pageContext.js';
  */
 export interface SheetLocationResult {
   id?: string;
-  normalizedId?: string;
+  sheetIdNormalized?: string;
+  sectionIdNormalized?: string;
   title?: string;
   confidence: number;
   method: string;

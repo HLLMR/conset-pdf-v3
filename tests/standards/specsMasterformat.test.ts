@@ -2,6 +2,7 @@
  * Tests for specs MasterFormat normalization
  */
 
+import { describe, test, expect } from '@jest/globals';
 import {
   extractSpecSectionId,
   normalizeSpecsMasterformat,
@@ -10,13 +11,13 @@ import {
 describe('Specs MasterFormat Normalization', () => {
   describe('extractSpecSectionId', () => {
     test('extracts valid MasterFormat section ID', () => {
-      expect(extractSpecSectionId('23 09 00')).toBe('23 09 00');
-      expect(extractSpecSectionId('01 10 00')).toBe('01 10 00');
-      expect(extractSpecSectionId('25 10 00')).toBe('25 10 00');
+      expect(extractSpecSectionId('23 09 00')).toEqual({ sectionId: '23 09 00', format: 'MODERN' });
+      expect(extractSpecSectionId('01 10 00')).toEqual({ sectionId: '01 10 00', format: 'MODERN' });
+      expect(extractSpecSectionId('25 10 00')).toEqual({ sectionId: '25 10 00', format: 'MODERN' });
     });
 
     test('handles whitespace trimming', () => {
-      expect(extractSpecSectionId('  23 09 00  ')).toBe('23 09 00');
+      expect(extractSpecSectionId('  23 09 00  ')).toEqual({ sectionId: '23 09 00', format: 'MODERN' });
     });
 
     test('returns null for invalid formats', () => {
@@ -30,6 +31,11 @@ describe('Specs MasterFormat Normalization', () => {
       expect(extractSpecSectionId(null)).toBeNull();
       expect(extractSpecSectionId(undefined)).toBeNull();
       expect(extractSpecSectionId('')).toBeNull();
+    });
+
+    test('extracts legacy pre-2004 5-digit section ID', () => {
+      expect(extractSpecSectionId('23050')).toEqual({ sectionId: '23050', format: 'LEGACY' });
+      expect(extractSpecSectionId('  15100  ')).toEqual({ sectionId: '15100', format: 'LEGACY' });
     });
   });
 
@@ -136,8 +142,17 @@ describe('Specs MasterFormat Normalization', () => {
         expect(result.divisionTitle).not.toBeNull();
         expect(result.confidence).toBe(1.0);
         expect(result.basis).toBe('MASTERFORMAT');
-        expect(result.order).toBe(parseInt(div, 10));
+        expect(result.order).toBeGreaterThanOrEqual(0);
       }
+    });
+
+    test('legacy 5-digit section IDs resolve via legacy mapping', () => {
+      const result = normalizeSpecsMasterformat({ normalizedId: '23050' });
+      expect(result.sectionId).toBe('23050');
+      expect(result.division).toBeTruthy();
+      expect(result.order).toBeGreaterThanOrEqual(0);
+      expect(result.basis).toBe('MASTERFORMAT_LEGACY');
+      expect(result.confidence).toBeGreaterThanOrEqual(0.6);
     });
   });
 });

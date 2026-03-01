@@ -71,7 +71,7 @@ export class RoiSpecsSectionLocator implements SheetLocator {
     const warnings: string[] = [];
 
     let sectionId: string | undefined;
-    let normalizedId: string | undefined;
+    let sectionIdNormalized: string | undefined;
     let matchedROI: number | undefined;
 
     for (let i = 0; i < this.profile.sheetId.rois.length; i++) {
@@ -126,7 +126,7 @@ export class RoiSpecsSectionLocator implements SheetLocator {
 
       const rawId = match[1].replace(/\s+/g, ' ').trim();
       sectionId = rawId;
-      normalizedId = normalizeSpecsSectionId(rawId);
+      sectionIdNormalized = normalizeSpecsSectionId(rawId);
       matchedROI = i;
       break;
     }
@@ -176,7 +176,7 @@ export class RoiSpecsSectionLocator implements SheetLocator {
 
     return {
       id: sectionId,
-      normalizedId,
+      sectionIdNormalized,
       title,
       confidence: sectionId ? 1.0 : 0.0,
       method: `ROI-SPECS-${matchedROI !== undefined ? matchedROI + 1 : 'none'}`,

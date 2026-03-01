@@ -544,7 +544,8 @@ export function buildTreeFromInventory(
   inventoryRows: Array<{
     id: string;
     page?: number;
-    normalizedId?: string;
+    sheetIdNormalized?: string;
+    sectionIdNormalized?: string;
     sheetId?: string;
     sectionId?: string;
     title?: string;
@@ -557,16 +558,17 @@ export function buildTreeFromInventory(
   
   for (const row of inventoryRows) {
     // Only create bookmarks for rows with IDs
-    const normalizedId = (row as any).normalizedId;
+    const sheetIdNormalized = (row as any).sheetIdNormalized;
+    const sectionIdNormalized = (row as any).sectionIdNormalized;
     const sheetId = (row as any).sheetId;
     const sectionId = (row as any).sectionId;
     
-    if (!normalizedId && !sheetId && !sectionId) {
+    if (!sheetIdNormalized && !sectionIdNormalized && !sheetId && !sectionId) {
       continue;
     }
     
-    // Use normalizedId, sheetId, or sectionId as logical path
-    const logicalPath = normalizedId || sheetId || sectionId || '';
+    // Use context-specific normalized IDs, then raw IDs as logical path
+    const logicalPath = sheetIdNormalized || sectionIdNormalized || sheetId || sectionId || '';
     const page = row.page || 1;
     const pageIndex = page - 1; // Convert 1-based to 0-based
     

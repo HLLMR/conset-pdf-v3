@@ -28,7 +28,9 @@ import type {
 type ParseInventoryItem = {
   pageIndex: number;
   sheetId?: string;
-  normalizedId?: string;
+  sectionId?: string;
+  sheetIdNormalized?: string;
+  sectionIdNormalized?: string;
   title?: string;
   confidence?: number;
   source?: string;
@@ -71,13 +73,17 @@ export function mapParseInventoryToInventoryRows(
   let lastPageIndex = -1;
 
   return parseInventory.map((item, arrayIndex) => {
+    const contextDetectedId = docType === 'specs'
+      ? (item.sectionIdNormalized || item.sectionId)
+      : (item.sheetIdNormalized || item.sheetId);
+
     // Determine status based on presence of ID and warnings
     let status: RowStatus = 'ok';
-    if (!item.normalizedId && !item.sheetId) {
+    if (!contextDetectedId) {
       status = 'error'; // No ID found
     } else if (item.warning) {
       status = 'warning';
-    } else if (item.normalizedId || item.sheetId) {
+    } else if (contextDetectedId) {
       status = 'ok';
     }
 
@@ -94,14 +100,16 @@ export function mapParseInventoryToInventoryRows(
     // This ensures the ID doesn't change when normalizedId is overridden
     const detectionSource = item.source || 'unknown';
     const enhancedSource = `${pdfId}-${detectionSource}`;
-    const idPart = item.sheetId || item.normalizedId || '';
+    const idPart = contextDetectedId || '';
     const stableId = `${enhancedSource}:${item.pageIndex}:${idPart}`;
 
-    // Store detected normalizedId separately (extend base type)
-    const normalizedId = item.normalizedId || item.sheetId || undefined;
+    const contextIdNormalized = contextDetectedId || undefined;
+    const sheetIdNormalized = docType === 'drawings' ? contextIdNormalized : undefined;
+    const sectionIdNormalized = docType === 'specs' ? contextIdNormalized : undefined;
 
     const row: InventoryRowBase & {
-      normalizedId?: string;
+      sheetIdNormalized?: string;
+      sectionIdNormalized?: string;
       title?: string;
       discipline?: DrawingsDisciplineMeta;
       specs?: SpecsMasterformatMeta;
@@ -113,15 +121,15 @@ export function mapParseInventoryToInventoryRows(
       source: item.source,
       notes: item.warning || item.context,
       tags: item.source ? [item.source] : undefined,
-      // Extend with normalizedId and title (not in base type, but used by merge workflow)
-      ...(normalizedId ? { normalizedId } : {}),
+      ...(sheetIdNormalized ? { sheetIdNormalized } : {}),
+      ...(sectionIdNormalized ? { sectionIdNormalized } : {}),
       ...(item.title ? { title: item.title } : {}),
     };
 
     // Add discipline metadata for drawings docType only
     if (docType === 'drawings') {
       row.discipline = normalizeDrawingsDiscipline({
-        normalizedId: row.normalizedId ?? null,
+        normalizedId: row.sheetIdNormalized ?? null,
         title: item.title ?? item.context ?? null,
       });
     }
@@ -129,7 +137,7 @@ export function mapParseInventoryToInventoryRows(
     // Add specs metadata for specs docType only
     if (docType === 'specs') {
       row.specs = normalizeSpecsMasterformat({
-        normalizedId: row.normalizedId ?? null,
+        normalizedId: row.sectionIdNormalized ?? null,
       });
     }
 

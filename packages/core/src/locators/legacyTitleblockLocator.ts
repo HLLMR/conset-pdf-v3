@@ -181,7 +181,7 @@ export class LegacyTitleblockLocator implements SheetLocator {
     const detectedBy = titleBlockBounds.detectedBy || 'default';
     return {
       id: best.id,
-      normalizedId: best.normalized,
+      sheetIdNormalized: best.normalized,
       title: extractedTitle || undefined,
       confidence: best.confidence,
       method: 'legacy-titleblock',

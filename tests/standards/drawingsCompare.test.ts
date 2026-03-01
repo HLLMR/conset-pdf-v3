@@ -2,6 +2,7 @@
  * Tests for drawings row comparison
  */
 
+import { describe, test, expect } from '@jest/globals';
 import { compareDrawingsRows } from '@conset-pdf/core';
 import type { DrawingsDisciplineMeta } from '@conset-pdf/core';
 

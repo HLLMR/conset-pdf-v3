@@ -55,7 +55,9 @@ interface ParseResult {
   inventory?: Array<{
     pageIndex: number;
     sheetId?: string;
-    normalizedId?: string;
+    sectionId?: string;
+    sheetIdNormalized?: string;
+    sectionIdNormalized?: string;
     title?: string;
     confidence?: number;
     source?: string;
@@ -132,9 +134,10 @@ async function parsePdfIds(
       
       const result = await locator.locate(pageContext);
       if (result.id && result.confidence >= 0.60) {
+        const normalizedId = result.sheetIdNormalized || result.id;
         parsed = {
           id: result.id,
-          normalized: result.normalizedId || result.id,
+          normalized: normalizedId,
           confidence: result.confidence,
           source: result.method as any,
           context: result.context,
@@ -189,7 +192,7 @@ async function parsePdfIds(
       inventory.push({
         pageIndex: i,
         sheetId: parsed?.id,
-        normalizedId: parsed?.normalized,
+        sheetIdNormalized: parsed?.normalized,
         title: extractedTitle || parsed?.title,
         confidence: parsed?.confidence,
         source: parsed?.source,
@@ -231,7 +234,7 @@ async function parsePdfIds(
         const coverPageInventoryIndex = inventory.findIndex(inv => inv.pageIndex === i);
         if (coverPageInventoryIndex >= 0) {
           inventory[coverPageInventoryIndex].sheetId = coverPageId;
-          inventory[coverPageInventoryIndex].normalizedId = coverPageNormalized;
+          inventory[coverPageInventoryIndex].sheetIdNormalized = coverPageNormalized;
           inventory[coverPageInventoryIndex].title = 'Cover Page';
           inventory[coverPageInventoryIndex].confidence = 1.0;
           inventory[coverPageInventoryIndex].source = 'cover-page';
@@ -241,7 +244,7 @@ async function parsePdfIds(
           inventory.push({
             pageIndex: i,
             sheetId: coverPageId,
-            normalizedId: coverPageNormalized,
+            sheetIdNormalized: coverPageNormalized,
             title: 'Cover Page',
             confidence: 1.0,
             source: 'cover-page',
@@ -342,15 +345,16 @@ async function parsePdfIds(
       
       inventory.push({
         pageIndex: i,
-        sheetId: result.id,
-        normalizedId: result.normalizedId,
+        sectionId: result.id,
+        sectionIdNormalized: result.sectionIdNormalized,
         confidence: result.confidence,
         _parseTimeMs: pageTime,
       });
       
       if (result.id && result.confidence >= 0.5) {
+        const normalizedId = result.sectionIdNormalized || result.id;
         pageIds.push({
-          normalizedId: result.normalizedId || result.id,
+          normalizedId,
           originalId: result.id,
           pageIndex: i,
           confidence: result.confidence,
@@ -363,7 +367,7 @@ async function parsePdfIds(
         
         if (verbose) {
           const contextInfo = result.context ? ` - ${result.context}` : '';
-          console.log(`  ✓ Page ${i + 1}: Found "${result.id}" -> "${result.normalizedId || result.id}" (${result.method}, confidence: ${result.confidence.toFixed(2)})${contextInfo}`);
+          console.log(`  ✓ Page ${i + 1}: Found "${result.id}" -> "${normalizedId}" (${result.method}, confidence: ${result.confidence.toFixed(2)})${contextInfo}`);
         }
       } else {
         // No ID found or confidence too low - add detailed failure reason

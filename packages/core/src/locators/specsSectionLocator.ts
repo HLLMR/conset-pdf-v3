@@ -40,7 +40,7 @@ export class SpecsSectionLocator implements SheetLocator {
     
     return {
       id: parsed.id,
-      normalizedId: parsed.normalized,
+      sectionIdNormalized: parsed.normalized,
       confidence: parsed.confidence,
       method: 'specs-section',
       warnings: [],

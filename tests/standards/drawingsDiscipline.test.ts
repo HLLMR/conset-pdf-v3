@@ -2,6 +2,7 @@
  * Tests for drawings discipline normalization
  */
 
+import { describe, test, expect } from '@jest/globals';
 import {
   extractDrawingsPrefix,
   normalizeDrawingsDiscipline,
@@ -66,9 +67,9 @@ describe('Drawings Discipline Normalization', () => {
       expect(result.basis).toBe('UDS');
     });
 
-    test('FP-101 => FIRP, basis ALIAS', () => {
+    test('FP-101 => FIRE, basis ALIAS', () => {
       const result = normalizeDrawingsDiscipline({ normalizedId: 'FP-101' });
-      expect(result.canonical4).toBe('FIRP');
+      expect(result.canonical4).toBe('FIRE');
       expect(result.designator).toBe('F');
       expect(result.alias).toBe('FP');
       expect(result.displayName).toBe('Fire Protection');
@@ -86,14 +87,14 @@ describe('Drawings Discipline Normalization', () => {
       expect(result.confidence).toBeGreaterThan(0.9);
     });
 
-    test('C-101 + title "TEMPERATURE CONTROL DIAGRAMS" => CTRL, basis HEURISTIC', () => {
+    test('C-101 + title "TEMPERATURE CONTROL DIAGRAMS" => MTEC, basis HEURISTIC', () => {
       const result = normalizeDrawingsDiscipline({
         normalizedId: 'C-101',
         title: 'TEMPERATURE CONTROL DIAGRAMS',
       });
-      expect(result.canonical4).toBe('CTRL');
+      expect(result.canonical4).toBe('MTEC');
       expect(result.designator).toBe('C');
-      expect(result.displayName).toBe('Controls');
+      expect(result.displayName).toBe('Mechanical');
       expect(result.basis).toBe('HEURISTIC');
       expect(result.reason).toContain('controls keywords');
       expect(result.confidence).toBeGreaterThan(0.8);
@@ -123,18 +124,18 @@ describe('Drawings Discipline Normalization', () => {
       expect(result.confidence).toBeGreaterThan(0.6);
     });
 
-    test('DDC-001 => CTRL, basis ALIAS', () => {
+    test('DDC-001 => MTEC, basis ALIAS', () => {
       const result = normalizeDrawingsDiscipline({ normalizedId: 'DDC-001' });
-      expect(result.canonical4).toBe('CTRL');
-      expect(result.designator).toBeNull();
+      expect(result.canonical4).toBe('MTEC');
+      expect(result.designator).toBe('M');
       expect(result.alias).toBe('DDC');
       expect(result.displayName).toBe('Direct Digital Controls');
       expect(result.basis).toBe('ALIAS');
     });
 
-    test('SEC-200 => TECH, basis ALIAS', () => {
+    test('SEC-200 => TELE, basis ALIAS', () => {
       const result = normalizeDrawingsDiscipline({ normalizedId: 'SEC-200' });
-      expect(result.canonical4).toBe('TECH');
+      expect(result.canonical4).toBe('TELE');
       expect(result.alias).toBe('SEC');
       expect(result.displayName).toBe('Security');
       expect(result.basis).toBe('ALIAS');

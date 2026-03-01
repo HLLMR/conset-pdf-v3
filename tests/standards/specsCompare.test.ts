@@ -2,6 +2,7 @@
  * Tests for specs row comparison
  */
 
+import { describe, test, expect } from '@jest/globals';
 import { compareSpecsRows } from '@conset-pdf/core';
 import type { SpecsMasterformatMeta } from '@conset-pdf/core';
 

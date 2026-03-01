@@ -7,6 +7,7 @@ import { naturalSort } from '../utils/sort.js';
 import { PDFDocument } from 'pdf-lib';
 import * as path from 'path';
 import { DocumentContext } from '../analyze/documentContext.js';
+import { normalizeSpecsMasterformat } from '../standards/normalizeSpecsMasterformat.js';
 
 /**
  * Split a PDF set into subsets
@@ -58,7 +59,7 @@ async function splitDrawings(
   interface PageInfo {
     pageIndex: number;
     id: string | null;
-    normalizedId: string | null;
+    sheetIdNormalized: string | null;
     prefix: string | null;
   }
 
@@ -71,19 +72,19 @@ async function splitDrawings(
     
     const parsed = getBestDrawingsSheetId(pageText, i, customPattern);
     let prefix: string | null = null;
-    let normalizedId: string | null = null;
+    let sheetIdNormalized: string | null = null;
 
     if (parsed && parsed.confidence >= 0.5) {
-      normalizedId = parsed.normalized;
+      sheetIdNormalized = parsed.normalized;
       // Extract prefix (first letter(s) before numbers)
-      const match = normalizedId.match(/^([A-Z]+)/);
+      const match = sheetIdNormalized.match(/^([A-Z]+)/);
       prefix = match ? match[1] : null;
     }
 
     pageInfos.push({
       pageIndex: i,
       id: parsed?.id || null,
-      normalizedId,
+      sheetIdNormalized,
       prefix,
     });
   }
@@ -128,10 +129,10 @@ async function splitDrawings(
 
     // Sort pages by ID
     pages.sort((a, b) => {
-      if (!a.normalizedId && !b.normalizedId) return 0;
-      if (!a.normalizedId) return 1;
-      if (!b.normalizedId) return -1;
-      return naturalSort([a.normalizedId, b.normalizedId])[0] === a.normalizedId
+      if (!a.sheetIdNormalized && !b.sheetIdNormalized) return 0;
+      if (!a.sheetIdNormalized) return 1;
+      if (!b.sheetIdNormalized) return -1;
+      return naturalSort([a.sheetIdNormalized, b.sheetIdNormalized])[0] === a.sheetIdNormalized
         ? -1
         : 1;
     });
@@ -173,8 +174,8 @@ async function splitDrawings(
         },
         sheetIds: prefixGroups
           .get(e.key)!
-          .filter((p) => p.normalizedId)
-          .map((p) => p.normalizedId),
+          .filter((p) => p.sheetIdNormalized)
+          .map((p) => p.sheetIdNormalized),
       })),
     };
     await writeJson(opts.tocJsonPath, toc);
@@ -209,7 +210,7 @@ async function splitSpecs(
   interface SectionInfo {
     pageIndex: number;
     sectionId: string | null;
-    normalizedId: string | null;
+    sectionIdNormalized: string | null;
     division: string | null;
     title?: string;
   }
@@ -222,21 +223,38 @@ async function splitSpecs(
     const pageText = pageContext.getText();
     
     const parsed = getBestSpecsSectionId(pageText, i, customPattern);
-    let normalizedId: string | null = null;
+    let sectionIdNormalized: string | null = null;
     let division: string | null = null;
+    let sectionId: string | null = parsed?.id || null;
 
     if (parsed && parsed.confidence >= 0.5) {
-      normalizedId = parsed.normalized;
+      sectionIdNormalized = parsed.normalized;
       // Extract division (first 2 digits)
-      division = normalizedId.substring(0, 2);
+      division = sectionIdNormalized.substring(0, 2);
+    } else {
+      const legacyMatches = pageText.match(/\b(?:SECTION\s+)?(\d{5})\b/gi) || [];
+      for (const rawMatch of legacyMatches) {
+        const candidate = (rawMatch.match(/(\d{5})/) || [])[1];
+        if (!candidate) continue;
+
+        const normalized = normalizeSpecsMasterformat({ normalizedId: candidate });
+        if (normalized.basis !== 'MASTERFORMAT_LEGACY') {
+          continue;
+        }
+
+        sectionId = candidate;
+        sectionIdNormalized = normalized.sectionId || candidate;
+        division = normalized.division;
+        break;
+      }
     }
 
     // Try to extract title (text after section ID)
     let title: string | undefined;
-    if (parsed) {
-      const idIndex = pageText.indexOf(parsed.id);
+    if (sectionId) {
+      const idIndex = pageText.indexOf(sectionId);
       if (idIndex !== -1) {
-        const afterId = pageText.substring(idIndex + parsed.id.length, idIndex + parsed.id.length + 50);
+        const afterId = pageText.substring(idIndex + sectionId.length, idIndex + sectionId.length + 50);
         const titleMatch = afterId.match(/^\s*[-–—]\s*(.+?)(?:\n|$)/);
         if (titleMatch) {
           title = titleMatch[1].trim();
@@ -246,8 +264,8 @@ async function splitSpecs(
 
     sectionInfos.push({
       pageIndex: i,
-      sectionId: parsed?.id || null,
-      normalizedId,
+      sectionId,
+      sectionIdNormalized,
       division,
       title,
     });
@@ -265,7 +283,7 @@ async function splitSpecs(
       groupKey = info.division || '_OTHER';
     } else {
       // groupBy === 'section'
-      groupKey = info.normalizedId || '_OTHER';
+      groupKey = info.sectionIdNormalized || '_OTHER';
     }
 
     // Start new group if key changed

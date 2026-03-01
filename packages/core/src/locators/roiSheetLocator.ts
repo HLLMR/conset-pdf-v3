@@ -33,7 +33,7 @@ export class RoiSheetLocator implements SheetLocator {
     
     // Try each ROI in order until we find a match
     let sheetId: string | undefined;
-    let normalizedId: string | undefined;
+    let sheetIdNormalized: string | undefined;
     let confidence = 0.0;
     let matchedROI: number | undefined;
     
@@ -43,7 +43,7 @@ export class RoiSheetLocator implements SheetLocator {
       
       if (result.id) {
         sheetId = result.id;
-        normalizedId = result.normalizedId;
+        sheetIdNormalized = result.sheetIdNormalized;
         confidence = result.confidence;
         matchedROI = i;
         
@@ -78,7 +78,7 @@ export class RoiSheetLocator implements SheetLocator {
     
     return {
       id: sheetId,
-      normalizedId,
+      sheetIdNormalized,
       title,
       confidence,
       method: `ROI-${matchedROI !== undefined ? matchedROI + 1 : 'none'}`,
@@ -95,7 +95,7 @@ export class RoiSheetLocator implements SheetLocator {
     page: PageContext,
     roi: { x: number; y: number; width: number; height: number },
     roiIndex: number
-  ): Promise<{ id?: string; normalizedId?: string; confidence: number; warning?: string; failureReason?: string }> {
+  ): Promise<{ id?: string; sheetIdNormalized?: string; confidence: number; warning?: string; failureReason?: string }> {
     // Get text items in ROI with small padding to tolerate drift
     // Use overlap mode to be more tolerant of items near ROI boundaries
     const roiItems = page.getTextItemsInROI(roi, {
@@ -532,7 +532,7 @@ export class RoiSheetLocator implements SheetLocator {
     
     return {
       id: bestMatch.id,
-      normalizedId: normalizeDrawingsSheetId(bestMatch.id),
+      sheetIdNormalized: normalizeDrawingsSheetId(bestMatch.id),
       confidence,
       warning: multipleMatchesWarning,
     };

@@ -120,7 +120,7 @@ export function normalizeSpecsMasterformat(input: {
     // Extract division (first 2 characters)
     const divisionId = sectionId.substring(0, 2);
 
-    // Lookup division from registry by 2-digit ID
+    // Lookup division from registry
     const divisionEntry = standardsRegistry.getDivisionByID(divisionId);
 
     if (divisionEntry) {

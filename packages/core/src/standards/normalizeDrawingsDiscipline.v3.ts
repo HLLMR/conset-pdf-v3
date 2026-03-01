@@ -130,36 +130,33 @@ export function normalizeDrawingsDiscipline(input: {
     };
   }
 
-  // Check for alias FIRST (before any other logic)
-  // This handles both multi-letter (FP, DDC, ATC) and two-letter aliases (FA)
+  // Check for multi-letter alias first
   const aliasEntry = standardsRegistry.getDisciplineByAlias(prefix);
   if (aliasEntry) {
     const aliases = standardsRegistry.getDisciplineAliases();
     const matchingAlias = aliases.find(a => a.alias === prefix);
     
-    // Create meta with alias displayName, not discipline displayName
-    return {
-      designator: matchingAlias?.resolvesToDisciplineID ?? null,
-      alias: prefix,
-      canonical4: aliasEntry.disciplineCODE as any,
-      displayName: matchingAlias?.displayName ?? aliasEntry.discipline,
-      order: aliasEntry.order,
-      confidence: matchingAlias?.confidence ?? 0.9,
-      basis: 'ALIAS',
-    };
+    return disciplineEntryToMeta(
+      aliasEntry,
+      'ALIAS',
+      matchingAlias?.confidence ?? 0.9,
+      matchingAlias?.resolvesToDisciplineID,
+      undefined,
+      prefix
+    );
   }
 
   // Check for single-letter UDS designator
   if (prefix.length === 1) {
     const disciplineEntry = standardsRegistry.getDisciplineByID(prefix);
     if (disciplineEntry) {
-      // Special handling for 'C' (ambiguous: CIVL vs Controls)
+      // Special handling for 'C' (ambiguous: CIVL vs CTRL)
       if (prefix === 'C') {
         if (titleContainsKeywords(title, CONTROLS_KEYWORDS)) {
-          const mtecEntry = standardsRegistry.getDisciplineByCode('MTEC');
-          if (mtecEntry) {
+          const ctrlEntry = standardsRegistry.getDisciplineByCode('CTRL');
+          if (ctrlEntry) {
             return disciplineEntryToMeta(
-              mtecEntry,
+              ctrlEntry,
               'HEURISTIC',
               0.85,
               'C',
@@ -203,9 +200,22 @@ export function normalizeDrawingsDiscipline(input: {
     }
   }
 
-  // Check for two-letter prefix - treat as base discipline + modifier
-  // (NOT EID lookup, as most sheets use modifier notation, not extended IDs)
+  // Check for two-letter prefix (could be extended EID like AD, FA, EP)
   if (prefix.length === 2) {
+    // Try EID lookup first
+    const eidEntry = standardsRegistry.getDisciplineByEid(prefix);
+    if (eidEntry) {
+      return disciplineEntryToMeta(
+        eidEntry,
+        'UDS',
+        0.90,
+        eidEntry.disciplineID,
+        prefix[1], // Second letter as modifier
+        undefined
+      );
+    }
+
+    // Fall back to treating first letter as UDS designator with modifier
     const firstLetter = prefix[0];
     const secondLetter = prefix[1];
     const disciplineEntry = standardsRegistry.getDisciplineByID(firstLetter);

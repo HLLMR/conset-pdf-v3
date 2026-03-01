@@ -73,15 +73,18 @@ class CorrectionApplyingLocator implements SheetLocator {
   private currentDocIndex: number = 0;
   private lastPageIndex: number = -1;
   private correctionMap: Map<string, string>; // key: "docIndex:pageIndex" -> correctedNormalizedId
+  private docType: ConsetDocType;
   private verbose: boolean;
 
   constructor(
     innerLocator: SheetLocator,
     correctionMap: Map<string, string>,
+    docType: ConsetDocType,
     verbose: boolean = false
   ) {
     this.innerLocator = innerLocator;
     this.correctionMap = correctionMap;
+    this.docType = docType;
     this.verbose = verbose;
   }
 
@@ -99,16 +102,21 @@ class CorrectionApplyingLocator implements SheetLocator {
     // Check if we have a correction for this page
     const correctedId = this.correctionMap.get(correctionKey);
     if (correctedId) {
-      const original = result.normalizedId || result.id;
+      const original = this.docType === 'specs'
+        ? (result.sectionIdNormalized || result.id)
+        : (result.sheetIdNormalized || result.id);
       if (this.verbose) {
         console.log(
           `[Corrections] ${correctionKey}: Applying correction "${original}" -> "${correctedId}"`
         );
       }
+      const correctedNormalized = this.docType === 'specs'
+        ? { sectionIdNormalized: correctedId }
+        : { sheetIdNormalized: correctedId };
       return {
         ...result,
         id: correctedId,
-        normalizedId: correctedId,
+        ...correctedNormalized,
       };
     }
 
@@ -266,14 +274,17 @@ export const mergeWorkflowImpl: WorkflowImpl<
     // Apply corrections
     const ignoredRowIds = corrections.ignoredRowIds || [];
     const overrides = corrections.overrides || {};
+    const idField = input.docType === 'specs' ? 'sectionIdNormalized' : 'sheetIdNormalized';
     
     // Apply corrections to rows: keep ignored rows but mark them, apply overrides
     const correctedRows = freshInventory.rows.map(row => {
       const isIgnored = ignoredRowIds.includes(row.id);
       const override = overrides[row.id];
       
-      // Create a new row object (preserve stable id, update normalizedId if present)
-      const correctedRow: InventoryRowBase & { normalizedId?: string } = { ...row };
+      const correctedRow: InventoryRowBase & {
+        sheetIdNormalized?: string;
+        sectionIdNormalized?: string;
+      } = { ...row };
       
       // Mark ignored rows: set status to 'ok' and add to tags for identification
       if (isIgnored) {
@@ -281,17 +292,14 @@ export const mergeWorkflowImpl: WorkflowImpl<
         correctedRow.tags = [...(row.tags || []), 'ignored'];
       }
       
-      // Apply normalizedId override: update normalizedId field (not the stable id)
-      // The stable id (row.id) remains unchanged to track which row was overridden
-      if (override?.fields?.normalizedId !== undefined) {
-        (correctedRow as any).normalizedId = String(override.fields.normalizedId);
-      } else if (override?.fields?.sheetId !== undefined) {
-        (correctedRow as any).normalizedId = String(override.fields.sheetId);
-      }
-      
-      // Ensure normalizedId exists (if not overridden, preserve original)
-      if (!(correctedRow as any).normalizedId && (row as any).normalizedId) {
-        (correctedRow as any).normalizedId = (row as any).normalizedId;
+      const overrideId = override?.fields?.[idField];
+      if (overrideId !== undefined) {
+        const normalizedOverride = String(overrideId);
+        if (input.docType === 'specs') {
+          correctedRow.sectionIdNormalized = normalizedOverride;
+        } else {
+          correctedRow.sheetIdNormalized = normalizedOverride;
+        }
       }
       
       return correctedRow;
@@ -428,7 +436,11 @@ export const mergeWorkflowImpl: WorkflowImpl<
           return;
         }
 
-        const correctedId = String((row as any).normalizedId || '').trim();
+        const correctedId = String(
+          docType === 'specs'
+            ? ((row as any).sectionIdNormalized || '')
+            : ((row as any).sheetIdNormalized || '')
+        ).trim();
         if (!correctedId) {
           return;
         }
@@ -458,6 +470,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
       locator = new CorrectionApplyingLocator(
         locator,
         pageIndexToCorrectedId,
+        docType,
         verbose
       );
     }

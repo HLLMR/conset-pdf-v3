@@ -28,8 +28,23 @@ export interface ValidateNarrativeOptions {
  * Candidate match for near-match detection
  */
 interface CandidateMatch {
-  row: InventoryRowBase & { normalizedId?: string };
+  row: InventoryRowBase & { sheetIdNormalized?: string; sectionIdNormalized?: string; title?: string };
   score: number;
+}
+
+type InventoryRowWithContextIds = InventoryRowBase & {
+  sheetIdNormalized?: string;
+  sectionIdNormalized?: string;
+  title?: string;
+};
+
+function getRowContextId(
+  row: InventoryRowWithContextIds,
+  docType?: 'drawings' | 'specs'
+): string | undefined {
+  if (docType === 'specs') return row.sectionIdNormalized;
+  if (docType === 'drawings') return row.sheetIdNormalized;
+  return row.sheetIdNormalized || row.sectionIdNormalized;
 }
 
 /**
@@ -100,14 +115,15 @@ export function buildCorrectionPatchForRow(
  */
 function findNearMatches(
   targetNormalizedId: string,
-  candidates: Array<InventoryRowBase & { normalizedId?: string }>,
+  candidates: InventoryRowWithContextIds[],
   threshold: number,
-  maxResults: number
+  maxResults: number,
+  docType?: 'drawings' | 'specs'
 ): CandidateMatch[] {
   const matches: CandidateMatch[] = [];
 
   for (const candidate of candidates) {
-    const candidateId = candidate.normalizedId;
+    const candidateId = getRowContextId(candidate, docType);
     if (!candidateId) continue;
 
     const score = levenshteinSimilarity(targetNormalizedId, candidateId);
@@ -186,7 +202,8 @@ function applyLineBasedMatching(
   // Build sets for quick lookup
   const addendumIds = new Set<string>();
   const originalIds = new Set<string>();
-  const originalIdMap = new Map<string, InventoryRowBase & { normalizedId?: string }>();
+  const originalIdMap = new Map<string, InventoryRowWithContextIds>();
+  const inventoryDocType = inventory.meta?.docType as 'drawings' | 'specs' | undefined;
 
   // Collect all addendum IDs (both sheets and specs)
   for (const drawing of narrative.drawings) {
@@ -198,10 +215,10 @@ function applyLineBasedMatching(
 
   // Collect all original IDs from inventory
   for (const row of inventory.rows) {
-    const normalizedId = (row as any).normalizedId;
-    if (normalizedId) {
-      originalIds.add(normalizedId);
-      originalIdMap.set(normalizedId, row as InventoryRowBase & { normalizedId?: string });
+    const contextId = getRowContextId(row as InventoryRowWithContextIds, inventoryDocType);
+    if (contextId) {
+      originalIds.add(contextId);
+      originalIdMap.set(contextId, row as InventoryRowWithContextIds);
     }
   }
 
@@ -371,16 +388,16 @@ export function validateNarrativeAgainstInventory(
 
   // Build lookup maps from inventory rows
   // Separate by type: drawings (sheets) vs specs
-  const sheetRows: Array<InventoryRowBase & { normalizedId?: string }> = [];
-  const specRows: Array<InventoryRowBase & { normalizedId?: string }> = [];
-  const exactMatchMap = new Map<string, Array<InventoryRowBase & { normalizedId?: string }>>();
+  const sheetRows: InventoryRowWithContextIds[] = [];
+  const specRows: InventoryRowWithContextIds[] = [];
+  const exactMatchMap = new Map<string, InventoryRowWithContextIds[]>();
 
   // Determine docType from meta or infer from rows
   const docType = inventory.meta?.docType as 'drawings' | 'specs' | undefined;
 
   for (const row of inventory.rows) {
-    const rowWithId = row as InventoryRowBase & { normalizedId?: string };
-    const normalizedId = rowWithId.normalizedId;
+    const rowWithId = row as InventoryRowWithContextIds;
+    const normalizedId = getRowContextId(rowWithId, docType);
     if (!normalizedId) continue;
 
     // Categorize by docType if available, otherwise by presence of discipline/specs fields
@@ -417,7 +434,7 @@ export function validateNarrativeAgainstInventory(
 
     if (exactMatches.length === 0) {
       // No exact match - try near matches
-      const nearMatches = findNearMatches(normalizedId, sheetRows, nearMatchThreshold, maxNearMatches);
+      const nearMatches = findNearMatches(normalizedId, sheetRows, nearMatchThreshold, maxNearMatches, 'drawings');
 
       if (nearMatches.length > 0) {
         // Near match found
@@ -432,7 +449,7 @@ export function validateNarrativeAgainstInventory(
           },
           nearMatches: nearMatches.map(m => ({
             rowId: m.row.id,
-            normalizedId: m.row.normalizedId!,
+            normalizedId: m.row.sheetIdNormalized!,
             title: (m.row as any).title,
             score: m.score,
             reason: 'id_similarity',
@@ -447,7 +464,7 @@ export function validateNarrativeAgainstInventory(
             normalizedId,
             drawing.sheetIdRaw,
             match.row.id,
-            match.row.normalizedId!,
+            match.row.sheetIdNormalized!,
             match.score,
             'id_similarity'
           );
@@ -498,7 +515,7 @@ export function validateNarrativeAgainstInventory(
 
     if (exactMatches.length === 0) {
       // No exact match - try near matches
-      const nearMatches = findNearMatches(normalizedId, specRows, nearMatchThreshold, maxNearMatches);
+      const nearMatches = findNearMatches(normalizedId, specRows, nearMatchThreshold, maxNearMatches, 'specs');
 
       if (nearMatches.length > 0) {
         // Near match found
@@ -513,7 +530,7 @@ export function validateNarrativeAgainstInventory(
           },
           nearMatches: nearMatches.map(m => ({
             rowId: m.row.id,
-            normalizedId: m.row.normalizedId!,
+            normalizedId: m.row.sectionIdNormalized!,
             title: (m.row as any).title,
             score: m.score,
             reason: 'id_similarity',
@@ -528,7 +545,7 @@ export function validateNarrativeAgainstInventory(
             normalizedId,
             spec.sectionIdRaw,
             match.row.id,
-            match.row.normalizedId!,
+            match.row.sectionIdNormalized!,
             match.score,
             'id_similarity'
           );
@@ -584,10 +601,10 @@ export function validateNarrativeAgainstInventory(
   }
 
   // Check changed rows that aren't mentioned in narrative
-  const unmentionedChangedRows: Array<InventoryRowBase & { normalizedId?: string }> = [];
+  const unmentionedChangedRows: InventoryRowWithContextIds[] = [];
   for (const row of changedRows) {
-    const rowWithId = row as InventoryRowBase & { normalizedId?: string };
-    const normalizedId = rowWithId.normalizedId;
+    const rowWithId = row as InventoryRowWithContextIds;
+    const normalizedId = getRowContextId(rowWithId, docType);
     if (!normalizedId) continue;
 
     if (!narrativeReferencedIds.has(normalizedId)) {
