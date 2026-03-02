@@ -19,7 +19,6 @@ import { validatePatch } from '../../specs/patch/validator.js';
 import { applyPatch } from '../../specs/patch/apply.js';
 import { readJson, writeJson } from '../../utils/fs.js';
 import { generateHtml, loadCssTemplate } from '../../specs/render/htmlGenerator.js';
-import { renderHtmlToPdf } from '../../specs/render/pdfRenderer.js';
 import type { SpecDoc, SpecNode } from '../../specs/ast/types.js';
 import type { SpecPatch, SpecPatchOperation } from '../../specs/patch/types.js';
 
@@ -391,6 +390,7 @@ export const specsPatchWorkflowImpl: WorkflowImpl<
     const html = generateHtml(specDoc, cssTemplate);
     
     // Render HTML to PDF
+    const { renderHtmlToPdf } = await import('../../specs/render/pdfRenderer.js');
     await renderHtmlToPdf(html, outputPdfPath);
     
     // Generate audit trail JSON
