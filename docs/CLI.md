@@ -6,7 +6,14 @@ This document describes all CLI commands available in `@conset-pdf/cli`.
 
 ## Overview
 
-The CLI routes through the same workflow engine as the GUI for consistency. All merge operations use `createMergeWorkflowRunner()` internally.
+The CLI routes through the same workflow engine as the core library for consistency. Implemented workflow commands include:
+- **`merge-addenda`**: Merge addenda into original set (Update Documents workflow)
+- **`split-set`**: Extract and separate documents by sheet ID (Extract Documents workflow)
+- **`fix-bookmarks`**: Read, validate, and repair PDF bookmarks (Fix Bookmarks workflow)
+
+Abandoned/Superseded commands:
+- **`specs-patch`**: Abandoned - functionality integrated into Extract workflow
+- **`assemble-set`**: Abandoned - replaced by modular composition in Extract workflow
 
 ## Installation
 
@@ -353,93 +360,29 @@ conset-pdf split-set \
 - `2`: Invalid arguments or validation error
 - `4`: File I/O error
 
-**Note**: This command uses the legacy `splitSet()` API. Workflow engine implementation is not yet available.
+**Note**: This command now uses the complete workflow engine (analyze/execute pattern) with full inventory analysis and corrections support.
 
 ---
 
-### assemble-set
+### assemble-set (Abandoned)
 
-Reassemble subsets into a final ordered set.
+**Status**: ❌ **ABANDONED** - This command is no longer maintained. Functionality has been replaced by the Extract Documents (split-set) workflow's modular composition capabilities.
 
-**Purpose**: Combine multiple PDF subsets (from split-set or other sources) into a single ordered document set.
+**See**: [split-set](#split-set) for document extraction and composition.
 
-**Usage**:
-```bash
-conset-pdf assemble-set \
-  --input-dir <path> \
-  --output <path> \
-  --type <type> \
-  [options]
-```
-
-**Required Arguments**:
-- `--input-dir <path>`: Path to input directory containing PDFs
-- `--output <path>`: Path to output PDF
-- `--type <type>`: Document type (`drawings` or `specs`)
-
-**Options**:
-- `--order-json <path>`: Path to JSON file specifying assembly order
-- `--verbose`: Verbose output (default: false)
-
-**Input Format**: Directory containing PDF files
-
-**Output Format**: Single assembled PDF file
-
-**Examples**:
-
-Assemble from directory:
-```bash
-conset-pdf assemble-set \
-  --input-dir ./subsets \
-  --output Final.pdf \
-  --type drawings
-```
-
-With custom order:
-```bash
-conset-pdf assemble-set \
-  --input-dir ./subsets \
-  --output Final.pdf \
-  --type drawings \
-  --order-json order.json
-```
-
-**Exit Codes**:
-- `0`: Success
-- `2`: Invalid arguments or validation error
-- `4`: File I/O error
-
-**Note**: This command uses the legacy `assembleSet()` API. Workflow engine implementation is not yet available.
+**Note**: This command previously used the legacy `assembleSet()` API.
 
 ---
 
-### specs-patch
+---
 
-Extract, patch, and render spec PDFs. Extracts Word-generated spec PDFs to structured AST, applies deterministic patch operations, and renders back to PDF.
+### specs-patch (Abandoned)
 
-**Purpose**: Treat specs as structured documents with hierarchical anchors for navigation and editing.
+**Status**: ❌ **ABANDONED** - This command is no longer maintained. Functionality has been integrated into the Extract Documents (split-set) workflow.
 
-**Usage**:
-```bash
-conset-pdf specs-patch \
-  --input <path> \
-  --output <path> \
-  [options]
-```
+**See**: [split-set](#split-set) for the current approach to document extraction and processing.
 
-**Required Arguments**:
-- `--input <path>`: Path to input PDF
-
-**Options**:
-- `--output <path>`: Path to output PDF (required unless `--dry-run`)
-- `--patch <path>`: Path to patch JSON file
-- `--dry-run`: Analyze only (output inventory JSON)
-- `--json-output <path>`: Path to write JSON output (behavior depends on mode):
-  - **Dry-run mode**: Writes full inventory JSON (analyze results with rows, issues, summary, and meta including SpecDoc AST)
-  - **Execute mode**: Writes AST JSON (SpecDoc structure only)
-- `--report <path>`: Path to write audit trail JSON report (execute mode only)
-- `--verbose`: Verbose output (default: false)
-- `--custom-section-pattern <pattern>`: Custom regex pattern for section ID detection
+---
 
 **Input Format**: PDF file (Word-generated spec PDF)
 

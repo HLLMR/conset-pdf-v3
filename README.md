@@ -15,13 +15,13 @@ Core library and CLI for building "latest-and-greatest" construction document se
   - ML-assisted profile generation (RulesetCompiler with LLM integration)
   - Enhanced parsers (specs with chrome removal, schedules, submittals)
   - Comprehensive test coverage (determinism, quality, extraction accuracy, bbox validation)
-- **Specs Patch Workflow** - Complete workflow engine implementation
-  - Extract Word-generated spec PDFs to structured AST
-  - Hierarchical anchor detection and validation
-  - Deterministic patch operations (insert, move, renumber, replace, delete)
-  - HTML/CSS → PDF rendering via Playwright (deterministic, cross-viewer compatible)
-  - BookmarkAnchorTree generation for bookmarks pipeline integration
-  - CLI command: `specs-patch`
+- **Extract Documents (Split) Workflow** - Complete workflow engine implementation
+  - Extract and separate documents by sheet ID with deterministic inventory
+  - Sheet detection and ID validation
+  - Deterministic inventory analysis and corrections support
+  - PDF extraction and subset assembly
+  - Conflict detection (duplicate IDs, missing IDs)
+  - CLI command: `split-set`
 - **Fix Bookmarks Workflow** - Complete workflow engine implementation
   - Read, validate, and repair PDF bookmarks
   - Rebuild bookmarks from `BookmarkAnchorTree` (Specs Pipeline) or sheet/section inventory
@@ -115,12 +115,12 @@ Both CLI and GUI applications route through the same workflow engine for consist
 
 **Workflow Engine**:
 - `createMergeWorkflowRunner()` - Merge workflow with analyze/execute pattern
-- `createSpecsPatchWorkflowRunner()` - Specs patch workflow with analyze/execute pattern
+- `createExtractWorkflowRunner()` - Extract workflow with analyze/execute pattern
 - `createBookmarksWorkflowRunner()` - Bookmarks workflow with analyze/execute pattern
 - `createWorkflowRunner()` - Generic workflow runner factory
 - `InventoryResult` - Standardized inventory analysis result
 - `CorrectionOverlay` - User corrections (ignore rows, override IDs, patch operations)
-- Workflow types: `merge`, `specs-patch`, `fix-bookmarks`, `split`, `assemble` (`merge`, `specs-patch`, and `fix-bookmarks` are fully implemented)
+- Workflow types: `merge`, `extract`, `fix-bookmarks` (all fully implemented); `specs-patch`, `assemble` (abandoned)
 
 ## Install
 
@@ -171,22 +171,22 @@ node packages/cli/dist/cli.js merge-addenda \
 
 **Note**: All CLI examples assume execution from the repository root. For installed CLI usage, replace `node packages/cli/dist/cli.js` with `conset-pdf` (if installed globally) or `npx @conset-pdf/cli`.
 
-**Specs patch** (extract, patch, and render):
+**Extract documents** (split by sheet ID):
 ```bash
-node packages/cli/dist/cli.js specs-patch \
-  --input Specs.pdf \
-  --output Specs-Patched.pdf \
-  --patch patch.json \
-  --json-output specs-patch-ast.json \
-  --report specs-patch-audit-trail.json
+node packages/cli/dist/cli.js split-set \
+  --input Full-Set.pdf \
+  --output-dir ./extracted \
+  --format "D-{id}-{pageCount}p.pdf" \
+  --type drawings
 ```
 
-**Specs patch dry-run** (analyze only, produces inventory JSON):
+**Extract dry-run** (analyze only, produces inventory JSON):
 ```bash
-node packages/cli/dist/cli.js specs-patch \
-  --input Specs.pdf \
+node packages/cli/dist/cli.js split-set \
+  --input Full-Set.pdf \
+  --type drawings \
   --dry-run \
-  --json-output specs-patch-inventory.json
+  --json-output split-inventory.json
 ```
 
 **Fix bookmarks** (dry-run to analyze existing bookmarks):
@@ -359,11 +359,11 @@ conset-pdf/
 
 | Workflow | Status | Description |
 |----------|--------|-------------|
-| **Specs Patch** | ✅ Implemented | Extract spec PDFs to AST, apply deterministic patches, render back to PDF |
 | **Update Documents** (merge) | ✅ Implemented | Merge addenda into original set, replace updated sheets, insert new sheets |
+| **Extract Documents** (split) | ✅ Implemented | Extract and separate documents by sheet ID with deterministic inventory |
 | **Fix Bookmarks** | ✅ Implemented | Read, validate, repair, and write PDF bookmarks. Rebuild from BookmarkAnchorTree or inventory |
-| Split Set | ⚠️ Placeholder | Split PDF into discipline-specific subsets (CLI command exists, workflow engine not implemented) |
-| Assemble Set | ⚠️ Placeholder | Reassemble subsets into final ordered set (CLI command exists, workflow engine not implemented) |
+| Specs Patch | ❌ Abandoned | Extraction and patching functionality integrated into Extract workflow |
+| Assemble Set | ❌ Abandoned | Superseded by modular composition in Extract workflow |
 
 ## Documentation
 

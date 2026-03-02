@@ -100,40 +100,23 @@ Complete transcript-based extraction system with:
 
 ---
 
-## ⚠️ Partially Complete
+## ❌ Abandoned
 
-### Split Set Workflow
+### Specs Patch Workflow
 
-**Status**: ⚠️ **CLI Only (Legacy API), Workflow Engine Not Implemented**
+**Status**: ❌ **Abandoned** - Extracted spec functionality integrated into Extract Documents workflow
 
-**What's Done**:
-- CLI command: `split-set` exists
-- Legacy API: `splitSet()` function in `core/splitSet.ts`
+**Superseded By**: Extract Documents (split) workflow with expanded capabilities
 
-**What's Missing**:
-- Workflow engine implementation (analyze/execute pattern)
-- GUI wizard (placeholder exists)
-- Inventory analysis for split operations
-- Corrections support
+**Files**: `packages/core/src/workflows/specs-patch/` (deprecated), `packages/cli/src/commands/specsPatch.ts` (deprecated)
 
-**Files**: `packages/cli/src/commands/splitSet.ts` (uses legacy API), `packages/core/src/core/splitSet.ts` (legacy implementation)
+### Assemble Set Workflow  
 
-### Assemble Set Workflow
+**Status**: ❌ **Abandoned** - Replaced by modular composition in Extract Documents workflow
 
-**Status**: ⚠️ **CLI Only (Legacy API), Workflow Engine Not Implemented**
+**Superseded By**: Extract Documents (split) workflow output composition
 
-**What's Done**:
-- CLI command: `assemble-set` exists
-- Legacy API: `assembleSet()` function in `core/assembleSet.ts`
-
-**What's Missing**:
-- Workflow engine implementation (analyze/execute pattern)
-- GUI wizard (placeholder exists)
-- Inventory analysis for assembly operations
-- Order validation
-- Conflict detection
-
-**Files**: `packages/cli/src/commands/assembleSet.ts` (uses legacy API), `packages/core/src/core/assembleSet.ts` (legacy implementation)
+**Files**: `packages/cli/src/commands/assembleSet.ts` (deprecated), `packages/core/src/core/assembleSet.ts` (deprecated)
 
 ---
 
@@ -173,14 +156,14 @@ Complete transcript-based extraction system with:
 
 | Feature | Core Engine | CLI | GUI | Status |
 |---------|-------------|-----|-----|--------|
-| **Specs Patch** | ✅ | ✅ | ❌ | Complete (Engine + CLI) |
 | **Update Documents (Merge)** | ✅ | ✅ | ✅ | Complete |
+| **Extract Documents (Split)** | ✅ | ✅ | ✅ | Complete |
+| **Fix Bookmarks** | ✅ | ✅ | ✅ | Complete |
+| **Specs Patch** | ❌ | ❌ | ❌ | Abandoned |
+| **Assemble Set** | ❌ | ❌ | ❌ | Abandoned |
 | **Standards (UCS/CSI)** | ✅ | ✅ | ✅ | Complete |
 | **Narrative Extraction** | ✅ | ✅ | ✅ | Complete |
 | **Narrative Validation** | ✅ | ✅ | ✅ | Complete |
-| **Fix Bookmarks** | ✅ | ✅ | ❌ | Complete (Engine + CLI) |
-| **Extract Documents (Split)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
-| **Build Package (Assemble)** | ❌ | ⚠️ | ⚠️ | CLI only (legacy) |
 
 **Legend**:
 - ✅ Complete

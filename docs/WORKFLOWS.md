@@ -183,51 +183,59 @@ All workflows follow the **analyze → applyCorrections → execute** pattern:
 
 ---
 
-## Split Set
+## Extract Documents (Split Set)
 
-**Domain Meaning**: Split a construction document set into discipline-specific subsets. For drawings, split by discipline prefix (M, E, P, etc.). For specs, split by division or section.
+**Domain Meaning**: Extract and separate documents by sheet ID with deterministic inventory analysis. For drawings, split by discipline prefix (M, E, P, etc.). For specs, split by division or section.
 
-**Status**: ⚠️ **Placeholder** (CLI command exists, workflow engine not implemented)
+**Status**: ✅ **Fully Implemented** (Workflow engine + CLI + GUI)
 
-### Current Implementation
+### Implementation
 
-- **CLI Command**: `split-set` (uses legacy `splitSet()` API)
-- **Workflow Engine**: Not implemented
-- **GUI**: Not implemented
+- **CLI Command**: `split-set` (uses workflow engine with analyze/execute pattern)
+- **Workflow Engine**: ✅ Fully implemented
+- **GUI**: ✅ Fully implemented  
+- **Factory**: `createExtractWorkflowRunner()`
 
-### Planned Inputs
+### Inputs
 
+**Analyze Input**:
 - Input PDF path
-- Output directory
 - Document type (`drawings` or `specs`)
-- Grouping method (`prefix`, `section`, `division`)
-- Prefixes (for drawings)
+- Layout profile (optional, for drawings)
 - Custom regex pattern (optional)
 
-### Planned Outputs
+**Execute Input**:
+- Output directory
+- Filename format pattern
+- Options (verbose, report path, etc.)
 
+### Outputs
+
+**InventoryResult**:
+- Rows with detected sheet IDs and pages
+- Issues (missing IDs, duplicates, conflicts)
+- Summary with pagination and statistics
+
+**ExecuteResult**:
 - Multiple PDF files (one per subset)
-- Table of contents JSON (optional)
+- Table of contents JSON
+- Audit trail report
 
 ---
 
-## Assemble Set
+## Assemble Set (Abandoned)
 
-**Domain Meaning**: Reassemble multiple PDF subsets into a single ordered document set. Combines outputs from split-set or other sources into a final construction document set.
+**Status**: ❌ **ABANDONED** - Functionality replaced by Extract Documents workflow composition
 
-**Status**: ⚠️ **Placeholder** (CLI command exists, workflow engine not implemented)
+**See**: Extract Documents workflow for document separation and composition capabilities
 
-### Current Implementation
+---
 
-- **CLI Command**: `assemble-set` (uses legacy `assembleSet()` API)
-- **Workflow Engine**: Not implemented
-- **GUI**: Not implemented
+## Specs Patch (Abandoned)
 
-### Planned Inputs
+**Status**: ❌ **ABANDONED** - Functionality integrated into Extract Documents workflow
 
-- Input directory (containing PDF files)
-- Output PDF path
-- Document type (`drawings` or `specs`)
+**See**: Extract Documents workflow for specification document processing
 - Order JSON file (optional, specifies assembly order)
 
 ### Planned Outputs
@@ -538,10 +546,10 @@ Patch operations are defined in JSON format:
 | Workflow | Engine | CLI | GUI | Status |
 |----------|--------|-----|-----|--------|
 | Update Documents (merge) | ✅ | ✅ | ✅ | Fully implemented |
-| Specs Patch | ✅ | ✅ | ❌ | Engine + CLI implemented |
-| Split Set | ❌ | ✅ | ❌ | CLI only (legacy API) |
-| Assemble Set | ❌ | ✅ | ❌ | CLI only (legacy API) |
-| Fix Bookmarks | ✅ | ✅ | ❌ | Engine + CLI implemented |
+| Extract Documents (split) | ✅ | ✅ | ✅ | Fully implemented |
+| Fix Bookmarks | ✅ | ✅ | ✅ | Fully implemented |
+| Specs Patch | ❌ | ❌ | ❌ | Abandoned |
+| Assemble Set | ❌ | ❌ | ❌ | Abandoned |
 
 ---
 
