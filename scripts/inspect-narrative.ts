@@ -1,18 +1,12 @@
 /**
- * DELETION CANDIDATE: Dev-only inspection script
+ * DEV TOOL: Narrative Parser Inspector
  * 
- * Status: Development tool, not part of production build
- * Evidence:
- *   - Not imported by any production code
- *   - Not referenced in package.json scripts
- *   - Manual inspection tool only
- * 
- * Action: Mark for deletion - useful for development but not needed in production
- * TODO: Remove after confirming no manual usage
- * Tracking: Cleanup pass 2026-01-17
- * 
- * Original purpose: Manual validation of narrative parsing output
+ * Status: Development/debugging tool (not part of build pipeline)
+ * Purpose: Manual validation of narrative parsing output
  * Usage: npx tsx scripts/inspect-narrative.ts
+ * 
+ * This script is intentionally kept for manual development workflows.
+ * It is not imported by production code or referenced in package.json scripts.
  */
 
 import {

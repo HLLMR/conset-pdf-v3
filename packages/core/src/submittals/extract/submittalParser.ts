@@ -6,6 +6,9 @@
  * - Key/value block extraction
  * - Performance data extraction
  * - Table extraction
+ * 
+ * @experimental This module is in early development. The API is subject to change
+ * and is not recommended for production use at this time.
  */
 
 import type { LayoutTranscript } from '../../transcript/types.js';

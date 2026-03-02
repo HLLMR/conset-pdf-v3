@@ -1,19 +1,13 @@
 #!/usr/bin/env node
 /**
- * DELETION CANDIDATE: Dev-only test script
+ * DEV TOOL: V3 Extraction Pipeline Tester
  * 
- * Status: Development tool, not part of production build
- * Evidence:
- *   - Not imported by any production code
- *   - Not referenced in package.json scripts
- *   - Manual testing tool only
+ * Status: Development/debugging tool (not part of build pipeline)
+ * Purpose: Tests PDF extraction pipeline, saves outputs at each step for inspection
+ * Usage: npx tsx scripts/test-v3-extraction.ts <pdf-path>
  * 
- * Action: Mark for deletion - useful for development but not needed in production
- * TODO: Remove after confirming no manual usage
- * Tracking: Cleanup pass 2026-01-17
- * 
- * Original purpose: Test script for V3 PDF Extraction Architecture
- * Processes a PDF through the full extraction pipeline and saves outputs at each step
+ * This script is intentionally kept for manual development workflows.
+ * It is not imported by production code or referenced in package.json scripts.
  */
 
 import * as fs from 'fs/promises';

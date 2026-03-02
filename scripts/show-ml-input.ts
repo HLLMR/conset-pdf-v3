@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 /**
- * DELETION CANDIDATE: Dev-only inspection script
+ * DEV TOOL: ML Input Inspector
  * 
- * Status: Development tool, not part of production build
- * Evidence:
- *   - Not imported by any production code
- *   - Not referenced in package.json scripts
- *   - Manual inspection tool only
+ * Status: Development/debugging tool (not part of build pipeline)
+ * Purpose: Shows what the abstract transcript looks like for ML engine input
+ * Usage: npx tsx scripts/show-ml-input.ts <pdf-path>
  * 
- * Action: Mark for deletion - useful for development but not needed in production
- * TODO: Remove after confirming no manual usage
- * Tracking: Cleanup pass 2026-01-17
- * 
- * Original purpose: Show what the abstract transcript looks like that would be sent to the ML engine
+ * This script is intentionally kept for manual development workflows.
+ * It is not imported by production code or referenced in package.json scripts.
  */
 
 import * as fs from 'fs/promises';

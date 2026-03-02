@@ -2,6 +2,10 @@
  * Submittal AST types
  * 
  * Defines the structured representation of equipment submittal documents.
+ * 
+ * @experimental This module is in early development and its API is subject to change.
+ * The submittal parsing functionality is provided as-is and may undergo significant
+ * refactoring in future versions. Not recommended for production use at this time.
  */
 
 /**
