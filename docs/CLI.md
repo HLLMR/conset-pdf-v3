@@ -1,6 +1,6 @@
 # CLI Documentation
 
-**Last verified**: 2026-01-17
+**Last verified**: 2026-03-01
 
 This document describes all CLI commands available in `@conset-pdf/cli`.
 

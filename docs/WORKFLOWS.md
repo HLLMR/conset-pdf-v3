@@ -1,6 +1,6 @@
 # Workflows Documentation
 
-**Last verified**: 2026-01-17
+**Last verified**: 2026-03-01
 
 This document describes all workflows implemented in the conset-pdf core library, their domain meaning, inputs, outputs, and current implementation status.
 

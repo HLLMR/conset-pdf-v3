@@ -1,6 +1,6 @@
 # Public API
 
-**Last verified**: 2026-01-17
+**Last verified**: 2026-03-01
 
 ## Stable API Guarantees
 

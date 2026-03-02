@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last updated**: 2026-01-17
+**Last updated**: 2026-03-01
 
 This document provides a concise view of what's complete and what remains to be implemented in the conset-pdf project.
 

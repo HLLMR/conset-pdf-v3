@@ -1,6 +1,6 @@
 # Legacy Code
 
-**Last verified**: 2026-01-17
+**Last verified**: 2026-03-01
 
 **WARNING: Do not extend this code. It exists only for backward compatibility and fallback scenarios.**
 
