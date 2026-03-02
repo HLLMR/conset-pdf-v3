@@ -131,6 +131,8 @@ export interface InventoryResult {
   narrative?: NarrativeInstructionSet;
   /** Optional narrative validation report (advisory only, read-only) */
   narrativeValidation?: NarrativeValidationReport;
+  /** Optional path to cached inventory JSON file */
+  inventoryPath?: string;
 }
 
 /**

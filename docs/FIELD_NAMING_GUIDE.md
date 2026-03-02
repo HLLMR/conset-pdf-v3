@@ -35,8 +35,9 @@ This document defines the **context-specific field naming conventions** adopted 
 | `sheetId` | `string \| null` | Raw extracted sheet identifier | `"A-101"`, `"M1-01"` |
 | `sheetIdNormalized` | `string \| null` | Canonicalized sheet ID (uppercase, trimmed) | `"A-101"`, `"M1-01"` |
 | `sheetTitle` | `string \| null` | Sheet title/description | `"First Floor Plan"` |
-| `discipline` | `string \| null` | Single-letter discipline code | `"A"`, `"M"`, `"E"` |
+| `discipline` | `string \| null` | Full level 1 discipline name | `"General"`, `"Mechanical"`, `"Electrical"` |
 | `disciplineID` | `string` | Single-letter discipline identifier (UDS standard) | `"G"`, `"A"`, `"M"` |
+| `disciplineEid` | `string` | Full 2-character level 1 + level 2 UDS identifier | `"AD"`, `"MP"`, `"EL"` |
 | `disciplineCODE` | `string` | 4-character discipline code | `"GENL"`, `"ARCH"`, `"MECH"` |
 | `disciplineFull` | `string` | Full discipline name with level 1 & 2 | `"Architectural Demolition"` |
 | `disciplineMeta` | `object` | Complete discipline metadata object | `{ disciplineID: "A", ... }` |
@@ -48,6 +49,8 @@ interface DrawingsInventoryRow {
   sheetId: string | null;
   sheetIdNormalized: string | null;
   sheetTitle: string | null;
+  disciplineID: string | null;
+  disciplineEid: string | null;
   discipline: string | null;
 }
 
@@ -68,10 +71,9 @@ interface PageInfo {
 | `sectionId` | `string \| null` | Raw extracted section identifier | `"23 09 00"`, `"23050"` (legacy) |
 | `sectionIdNormalized` | `string \| null` | Canonicalized section ID | `"23 09 00"`, `"23050"` |
 | `sectionTitle` | `string \| null` | Section title/description | `"HVAC Controls"` |
-| `division` | `string \| null` | 2-digit division code | `"22"`, `"23"`, `"26"` |
+| `division` | `string \| null` | Full division name | `"Heating, Ventilating, and Air Conditioning (HVAC)"` |
 | `divisionID` | `string` | 2-digit division identifier (MasterFormat 2018) | `"22"`, `"23"`, `"25"` |
 | `divisionCODE` | `string` | 4-character division code | `"PLUM"`, `"HVAC"`, `"ELEC"` |
-| `divisionTitle` | `string \| null` | Full division title | `"Heating, Ventilating, and Air Conditioning (HVAC)"` |
 | `divisionMeta` | `object` | Complete division metadata object | `{ divisionID: "23", ... }` |
 
 **Example Usage:**
@@ -81,6 +83,7 @@ interface SpecsInventoryRow {
   sectionId: string | null;
   sectionIdNormalized: string | null;
   sectionTitle: string | null;
+  divisionID: string | null;
   division: string | null;
 }
 
@@ -89,6 +92,7 @@ interface SectionInfo {
   page: number;
   sectionIdNormalized: string | null;
   sectionTitle: string | null;
+  divisionID: string | null;
   division: string | null;
 }
 ```
@@ -108,7 +112,8 @@ const legacyRow: SpecsInventoryRow = {
   sectionId: '23050',              // Legacy 5-digit format
   sectionIdNormalized: '23050',    // Same field name as modern
   sectionTitle: 'Basic Mechanical Materials and Methods',
-  division: '23'                   // Maps to modern division
+  divisionID: '23',
+  division: 'Heating, Ventilating, and Air Conditioning (HVAC)'
 };
 
 // Modern section row (6-digit format)
@@ -117,7 +122,8 @@ const modernRow: SpecsInventoryRow = {
   sectionId: '23 09 00',           // Modern 6-digit format
   sectionIdNormalized: '23 09 00', // Same field name as legacy
   sectionTitle: 'HVAC Controls',
-  division: '23'
+  divisionID: '23',
+  division: 'Heating, Ventilating, and Air Conditioning (HVAC)'
 };
 ```
 

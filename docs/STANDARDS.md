@@ -79,7 +79,7 @@ Pragmatic ordering table:
 ### Types
 
 - `SpecsBasis`: 'MASTERFORMAT' | 'UNKNOWN'
-- `SpecsMasterformatMeta`: Complete MasterFormat metadata including section ID, division, division title, order, confidence, and basis
+- `SpecsMasterformatMeta`: Complete MasterFormat metadata including section ID, divisionID, division name, order, confidence, and basis
 
 ### Functions
 
@@ -89,8 +89,8 @@ Normalizes a specs MasterFormat classification from `normalizedId`.
 
 Returns `SpecsMasterformatMeta` with:
 - `sectionId`: Full section ID in format "DD SS SS" (e.g., "23 09 00")
-- `division`: Division code (e.g., "23")
-- `divisionTitle`: Division title from dataset if present
+- `divisionID`: Division code (e.g., "23")
+- `division`: Full division name from dataset if present
 - `order`: Numeric division order (fallback 999)
 - `confidence`: Confidence level (0.0 to 1.0)
   - 1.0 for known divisions in dataset
@@ -188,7 +188,7 @@ import { normalizeSpecsMasterformat, compareSpecsRows } from '@conset-pdf/core';
 const meta = normalizeSpecsMasterformat({
   normalizedId: '23 09 00'
 });
-// Returns: { sectionId: '23 09 00', division: '23', divisionTitle: 'HVAC', order: 23, ... }
+// Returns: { sectionId: '23 09 00', divisionID: '23', division: 'Heating, Ventilating, and Air Conditioning (HVAC)', order: 23, ... }
 
 // Sort rows
 rows.sort(compareSpecsRows);

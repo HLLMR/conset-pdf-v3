@@ -211,7 +211,7 @@ async function splitSpecs(
     pageIndex: number;
     sectionId: string | null;
     sectionIdNormalized: string | null;
-    division: string | null;
+    divisionID: string | null;
     title?: string;
   }
 
@@ -224,13 +224,13 @@ async function splitSpecs(
     
     const parsed = getBestSpecsSectionId(pageText, i, customPattern);
     let sectionIdNormalized: string | null = null;
-    let division: string | null = null;
+    let divisionID: string | null = null;
     let sectionId: string | null = parsed?.id || null;
 
     if (parsed && parsed.confidence >= 0.5) {
       sectionIdNormalized = parsed.normalized;
       // Extract division (first 2 digits)
-      division = sectionIdNormalized.substring(0, 2);
+      divisionID = sectionIdNormalized.substring(0, 2);
     } else {
       const legacyMatches = pageText.match(/\b(?:SECTION\s+)?(\d{5})\b/gi) || [];
       for (const rawMatch of legacyMatches) {
@@ -244,7 +244,7 @@ async function splitSpecs(
 
         sectionId = candidate;
         sectionIdNormalized = normalized.sectionId || candidate;
-        division = normalized.division;
+        divisionID = normalized.divisionID;
         break;
       }
     }
@@ -266,7 +266,7 @@ async function splitSpecs(
       pageIndex: i,
       sectionId,
       sectionIdNormalized,
-      division,
+      divisionID,
       title,
     });
   }
@@ -280,7 +280,7 @@ async function splitSpecs(
     let groupKey: string;
 
     if (groupBy === 'division') {
-      groupKey = info.division || '_OTHER';
+      groupKey = info.divisionID || '_OTHER';
     } else {
       // groupBy === 'section'
       groupKey = info.sectionIdNormalized || '_OTHER';

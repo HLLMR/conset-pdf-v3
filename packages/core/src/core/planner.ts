@@ -67,6 +67,8 @@ interface ParseResult {
   }>;
   // Map from pageIndex to title for bookmark generation
   pageTitleMap?: Map<number, string>;
+  // Path to cached inventory JSON file (if writeInventory=true)
+  inventoryPath?: string;
 }
 
 async function parsePdfIds(
@@ -390,9 +392,9 @@ async function parsePdfIds(
   const parseTime = Date.now() - parseStart;
   
   // Write inventory file if requested
+  let inventoryPath: string | undefined;
   if (writeInventory) {
     // Determine inventory file path
-    let inventoryPath: string;
     if (inventoryOutputDir) {
       // Use organized output directory
       const path = await import('path');
@@ -446,7 +448,7 @@ async function parsePdfIds(
     }
   }
   
-  return { pageIds, warnings, notices, docContext, inventory, pageTitleMap };
+  return { pageIds, warnings, notices, docContext, inventory, pageTitleMap, inventoryPath };
 }
 
 /**
@@ -500,8 +502,8 @@ export async function planMerge(
   inventoryOutputDir?: string,
   includeInventory: boolean = false
 ): Promise<
-  | (MergePlan & { originalDocContext?: DocumentContext })
-  | (MergePlan & { originalDocContext?: DocumentContext; inventory: ParseResult['inventory'] })
+  | (MergePlan & { originalDocContext?: DocumentContext; inventoryPath?: string })
+  | (MergePlan & { originalDocContext?: DocumentContext; inventory: ParseResult['inventory']; inventoryPath?: string })
 > {
   const parseStart = Date.now();
 
@@ -774,7 +776,7 @@ export async function planMerge(
     console.log(`\n⏱️  Parse time: ${parseTime}ms (${(parseTime / 1000).toFixed(2)}s)`);
   }
 
-  const result: MergePlan & { originalDocContext?: DocumentContext; inventory?: ParseResult['inventory'] } = {
+  const result: MergePlan & { originalDocContext?: DocumentContext; inventory?: ParseResult['inventory']; inventoryPath?: string } = {
     pages: workingSet.map((wp) => ({
       source: wp.source,
       sourceIndex: wp.sourceIndex,
@@ -797,6 +799,11 @@ export async function planMerge(
   // Attach inventory if requested
   if (includeInventory) {
     result.inventory = combinedInventory;
+  }
+  
+  // Attach inventory path from original PDF parsing
+  if (originalResult.inventoryPath) {
+    (result as any).inventoryPath = originalResult.inventoryPath;
   }
   
   return result;

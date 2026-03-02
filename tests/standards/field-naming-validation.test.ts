@@ -20,6 +20,8 @@ interface TestDrawingsInventoryRow {
   sheetId: string;
   sheetIdNormalized: string;
   title?: string;
+  disciplineID?: string;
+  disciplineEid?: string;
   discipline?: string;
   [key: string]: unknown;
 }
@@ -30,6 +32,7 @@ interface TestSpecsInventoryRow {
   sectionId: string;
   sectionIdNormalized: string;
   title?: string;
+  divisionID?: string;
   division?: string;
   [key: string]: unknown;
 }
@@ -43,7 +46,9 @@ describe('Field Naming Conventions', () => {
         sheetId: 'A-101',
         sheetIdNormalized: 'A-101',
         title: 'Floor Plan',
-        discipline: 'A'
+        disciplineID: 'A',
+        disciplineEid: 'A_',
+        discipline: 'Architectural'
       };
 
       // Verify the field exists and is properly typed
@@ -59,7 +64,9 @@ describe('Field Naming Conventions', () => {
           sheetId: 'A-101',
           sheetIdNormalized: 'A-101',
           title: 'First Floor Plan',
-          discipline: 'A'
+          disciplineID: 'A',
+          disciplineEid: 'A_',
+          discipline: 'Architectural'
         },
         {
           id: 'drawing-2',
@@ -67,7 +74,9 @@ describe('Field Naming Conventions', () => {
           sheetId: 'A-102',
           sheetIdNormalized: 'A-102',
           title: 'Second Floor Plan',
-          discipline: 'A'
+          disciplineID: 'A',
+          disciplineEid: 'A_',
+          discipline: 'Architectural'
         }
       ];
 
@@ -92,7 +101,8 @@ describe('Field Naming Conventions', () => {
         sectionId: '23 09 00',
         sectionIdNormalized: '23 09 00',
         title: 'HVAC Controls',
-        division: '23'
+        divisionID: '23',
+        division: 'Heating, Ventilating, and Air Conditioning (HVAC)'
       };
 
       // Verify the field exists and is properly typed
@@ -108,7 +118,8 @@ describe('Field Naming Conventions', () => {
           sectionId: '23 09 00',
           sectionIdNormalized: '23 09 00',
           title: 'HVAC Controls',
-          division: '23'
+          divisionID: '23',
+          division: 'Heating, Ventilating, and Air Conditioning (HVAC)'
         },
         {
           id: 'spec-2',
@@ -116,7 +127,8 @@ describe('Field Naming Conventions', () => {
           sectionId: '26 05 00',
           sectionIdNormalized: '26 05 00',
           title: 'Electrical Common Work',
-          division: '26'
+          divisionID: '26',
+          division: 'Electrical'
         }
       ];
 
@@ -144,7 +156,9 @@ describe('Field Naming Conventions', () => {
         sheetId: 'M-301',
         sheetIdNormalized: 'M-301',
         title: 'Mechanical Plan',
-        discipline: 'M'
+        disciplineID: 'M',
+        disciplineEid: 'M_',
+        discipline: 'Mechanical'
       };
 
       expect(validRow.sheetIdNormalized).toBeDefined();
@@ -161,7 +175,8 @@ describe('Field Naming Conventions', () => {
         sectionId: '22 00 00',
         sectionIdNormalized: '22 00 00',
         title: 'Plumbing',
-        division: '22'
+        divisionID: '22',
+        division: 'Plumbing'
       };
 
       expect(validRow.sectionIdNormalized).toBeDefined();
@@ -177,7 +192,9 @@ describe('Field Naming Conventions', () => {
         sheetId: 'E-401',
         sheetIdNormalized: 'E-401',
         title: 'Electrical Riser',
-        discipline: 'E'
+        disciplineID: 'E',
+        disciplineEid: 'E_',
+        discipline: 'Electrical'
       };
 
       // Should only have context-specific field
@@ -191,7 +208,8 @@ describe('Field Naming Conventions', () => {
         sectionId: '26 20 00',
         sectionIdNormalized: '26 20 00',
         title: 'Low-Voltage Electrical Distribution',
-        division: '26'
+        divisionID: '26',
+        division: 'Electrical'
       };
 
       // Should only have context-specific field
@@ -210,7 +228,8 @@ describe('Legacy Support Field Naming', () => {
         sectionId: '23050',
         sectionIdNormalized: '23050', // Legacy format
         title: 'Basic Mechanical Materials and Methods',
-        division: '23'
+        divisionID: '23',
+        division: 'Heating, Ventilating, and Air Conditioning (HVAC)'
       };
 
       expect(legacyRow.sectionIdNormalized).toBe('23050');

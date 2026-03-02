@@ -81,6 +81,9 @@ function disciplineEntryToMeta(
 ): DrawingsDisciplineMeta {
   return {
     designator: designator ?? entry.disciplineID,
+    disciplineID: entry.disciplineID,
+    disciplineEid: entry.disciplineEid,
+    discipline: entry.discipline,
     modifier: modifier ?? undefined,
     alias: alias ?? undefined,
     canonical4: entry.disciplineCODE as any, // Map disciplineCODE to legacy canonical4
@@ -108,6 +111,9 @@ export function normalizeDrawingsDiscipline(input: {
   if (!normalizedId) {
     return {
       designator: null,
+      disciplineID: null,
+      disciplineEid: null,
+      discipline: null,
       canonical4: 'UNKN',
       displayName: 'Unknown',
       order: 999,
@@ -121,6 +127,9 @@ export function normalizeDrawingsDiscipline(input: {
   if (!prefix) {
     return {
       designator: null,
+      disciplineID: null,
+      disciplineEid: null,
+      discipline: null,
       canonical4: 'UNKN',
       displayName: 'Unknown',
       order: 999,
@@ -140,6 +149,9 @@ export function normalizeDrawingsDiscipline(input: {
     // Create meta with alias displayName, not discipline displayName
     return {
       designator: matchingAlias?.resolvesToDisciplineID ?? null,
+      disciplineID: aliasEntry.disciplineID,
+      disciplineEid: aliasEntry.disciplineEid,
+      discipline: aliasEntry.discipline,
       alias: prefix,
       canonical4: aliasEntry.disciplineCODE as any,
       displayName: matchingAlias?.displayName ?? aliasEntry.discipline,
@@ -223,6 +235,9 @@ export function normalizeDrawingsDiscipline(input: {
   // Unknown prefix
   return {
     designator: null,
+    disciplineID: null,
+    disciplineEid: null,
+    discipline: null,
     alias: prefix,
     canonical4: 'UNKN',
     displayName: 'Unknown',

@@ -7,26 +7,27 @@
  * Rules:
  * 1. Uppercase letters
  * 2. Collapse whitespace
- * 3. Convert separators (., _, multiple -) into canonical - between major numeric groups
- * 4. Preserve suffix letters (e.g., A in M1-01A)
+ * 3. Preserve original delimiter (dot, dash, etc.)
+ * 4. Remove spaces around delimiters
+ * 5. Preserve suffix letters (e.g., A in M1-01A)
  */
 export function normalizeDrawingsSheetId(id: string): string {
   // Uppercase
   let normalized = id.toUpperCase();
   
-  // Collapse whitespace
+  // Preserve dots and dashes but normalize spacing around them
+  // Example: "G 0.01" -> "G0.01", "M6-03" -> "M6-03"
+  // First, remove spaces around dots and dashes
+  normalized = normalized.replace(/\s*([.\-])\s*/g, '$1');
+  
+  // Then collapse remaining whitespace to single space
   normalized = normalized.replace(/\s+/g, ' ');
   
-  // Replace various separators with single dash
-  // Pattern: letter(s) optional-number dash/dot/space number(s) optional-suffix
-  // We want: LETTERS-NUMBERS-SUFFIX or LETTERS-NUMBERS
-  normalized = normalized.replace(/[-._\s]+/g, '-');
+  // Trim
+  normalized = normalized.trim();
   
-  // Remove multiple consecutive dashes
-  normalized = normalized.replace(/-+/g, '-');
-  
-  // Trim dashes from start/end
-  normalized = normalized.replace(/^-+|-+$/g, '');
+  // Remove any remaining spaces (shouldn't be any after above, but just in case)
+  normalized = normalized.replace(/\s/g, '');
   
   return normalized;
 }

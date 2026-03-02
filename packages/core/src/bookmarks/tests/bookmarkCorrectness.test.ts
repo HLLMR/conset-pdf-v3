@@ -76,7 +76,7 @@ describe('Bookmark Correctness Regression Tests', () => {
   const bookmarkTreePath = join(repoRoot, 'tests/fixtures/specs-bookmark-tree.json');
   
   // Helper to find input PDF
-  function findInputPdf(): string {
+  function findInputPdf(): string | null {
     const possiblePdfPaths = [
       join(repoRoot, '.reference/LHHS/Specifications/23_MECH_FULL.pdf'),
       join(repoRoot, '../.reference/LHHS/Specifications/23_MECH_FULL.pdf'),
@@ -94,8 +94,17 @@ describe('Bookmark Correctness Regression Tests', () => {
       }
     }
     
-    throw new Error(`Input PDF not found. Tried: ${possiblePdfPaths.join(', ')}`);
+    return null;
   }
+
+  const inputPdf = (() => {
+    try {
+      return findInputPdf();
+    } catch {
+      return null;
+    }
+  })();
+  const itIfPdf = inputPdf ? it : it.skip;
   
   // Known sections that should exist in the PDF
   // Filter sections that exist in bookmark tree
@@ -119,14 +128,13 @@ describe('Bookmark Correctness Regression Tests', () => {
     }
   }
 
-  it('should place section bookmarks on pages containing the actual section heading', async () => {
+  itIfPdf('should place section bookmarks on pages containing the actual section heading', async () => {
     const knownSections = getKnownSections();
     if (knownSections.length === 0) {
       console.log('Skipping test: no known sections found in bookmark tree');
       return;
     }
     
-    const inputPdf = findInputPdf();
     const tempDir = tmpdir();
     const testId = `conset-pdf-section-dest-${Date.now()}`;
     const outputPdf = join(tempDir, `${testId}.pdf`);
@@ -137,7 +145,7 @@ describe('Bookmark Correctness Regression Tests', () => {
       await execFileAsync('node', [
         cliPath,
         'fix-bookmarks',
-        '--input', inputPdf,
+        '--input', inputPdf!,
         '--output', outputPdf,
         '--bookmark-tree', bookmarkTreePath,
         '--rebuild',
@@ -202,8 +210,7 @@ describe('Bookmark Correctness Regression Tests', () => {
     }
   }, 120000);
 
-  it('should order section roots in ascending numeric order', async () => {
-    const inputPdf = findInputPdf();
+  itIfPdf('should order section roots in ascending numeric order', async () => {
     const tempDir = tmpdir();
     const testId = `conset-pdf-section-order-${Date.now()}`;
     const outputPdf = join(tempDir, `${testId}.pdf`);
@@ -214,7 +221,7 @@ describe('Bookmark Correctness Regression Tests', () => {
       await execFileAsync('node', [
         cliPath,
         'fix-bookmarks',
-        '--input', inputPdf,
+        '--input', inputPdf!,
         '--output', outputPdf,
         '--bookmark-tree', bookmarkTreePath,
         '--rebuild',
@@ -292,8 +299,7 @@ describe('Bookmark Correctness Regression Tests', () => {
     }
   }, 120000);
 
-  it('should nest articles under their section root (hierarchy)', async () => {
-    const inputPdf = findInputPdf();
+  itIfPdf('should nest articles under their section root (hierarchy)', async () => {
     const tempDir = tmpdir();
     const testId = `conset-pdf-hierarchy-${Date.now()}`;
     const outputPdf = join(tempDir, `${testId}.pdf`);
@@ -304,7 +310,7 @@ describe('Bookmark Correctness Regression Tests', () => {
       await execFileAsync('node', [
         cliPath,
         'fix-bookmarks',
-        '--input', inputPdf,
+        '--input', inputPdf!,
         '--output', outputPdf,
         '--bookmark-tree', bookmarkTreePath,
         '--rebuild',
@@ -357,8 +363,7 @@ describe('Bookmark Correctness Regression Tests', () => {
     }
   }, 120000);
 
-  it('should reject body text fragments as bookmark titles', async () => {
-    const inputPdf = findInputPdf();
+  itIfPdf('should reject body text fragments as bookmark titles', async () => {
     const tempDir = tmpdir();
     const testId = `conset-pdf-title-quality-${Date.now()}`;
     const outputPdf = join(tempDir, `${testId}.pdf`);
@@ -369,7 +374,7 @@ describe('Bookmark Correctness Regression Tests', () => {
       await execFileAsync('node', [
         cliPath,
         'fix-bookmarks',
-        '--input', inputPdf,
+        '--input', inputPdf!,
         '--output', outputPdf,
         '--bookmark-tree', bookmarkTreePath,
         '--rebuild',

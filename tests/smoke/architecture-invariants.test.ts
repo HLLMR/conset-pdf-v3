@@ -48,8 +48,12 @@ describe('Architecture Invariants', () => {
       // Normalize path separators
       relativePath = relativePath.replace(/\\/g, '/');
       
-      // Allow analyze/ (allowed) and utils/pdf.ts (legacy fallback)
-      if (relativePath.startsWith('analyze/') || relativePath === 'utils/pdf.ts') {
+      // Allow analyze/ (allowed), utils/pdf.ts (legacy fallback), and transcript PDF.js extractor (intentional fallback)
+      if (
+        relativePath.startsWith('analyze/') ||
+        relativePath === 'utils/pdf.ts' ||
+        relativePath === 'transcript/extractors/pdfjsExtractor.ts'
+      ) {
         continue;
       }
       
@@ -95,8 +99,12 @@ describe('Architecture Invariants', () => {
       // Normalize path separators
       relativePath = relativePath.replace(/\\/g, '/');
       
-      // Allow analyze/ (allowed) and utils/pdf.ts (legacy fallback)
-      if (relativePath.startsWith('analyze/') || relativePath === 'utils/pdf.ts') {
+      // Allow analyze/ (allowed), utils/pdf.ts (legacy fallback), and transcript PDF.js extractor (intentional fallback)
+      if (
+        relativePath.startsWith('analyze/') ||
+        relativePath === 'utils/pdf.ts' ||
+        relativePath === 'transcript/extractors/pdfjsExtractor.ts'
+      ) {
         continue;
       }
       

@@ -40,11 +40,11 @@ describe('Specs MasterFormat Normalization', () => {
   });
 
   describe('normalizeSpecsMasterformat', () => {
-    test('normalizedId = "23 09 00" => division "23", title present, order 23, confidence 1', () => {
+    test('normalizedId = "23 09 00" => divisionID "23", division name present, order 23, confidence 1', () => {
       const result = normalizeSpecsMasterformat({ normalizedId: '23 09 00' });
       expect(result.sectionId).toBe('23 09 00');
-      expect(result.division).toBe('23');
-      expect(result.divisionTitle).toBe(
+      expect(result.divisionID).toBe('23');
+      expect(result.division).toBe(
         'Heating, Ventilating, and Air Conditioning (HVAC)'
       );
       expect(result.order).toBe(23);
@@ -53,21 +53,21 @@ describe('Specs MasterFormat Normalization', () => {
       expect(result.reason).toBeUndefined();
     });
 
-    test('normalizedId = "25 10 00" => division "25", title present, order 25', () => {
+    test('normalizedId = "25 10 00" => divisionID "25", division name present, order 25', () => {
       const result = normalizeSpecsMasterformat({ normalizedId: '25 10 00' });
       expect(result.sectionId).toBe('25 10 00');
-      expect(result.division).toBe('25');
-      expect(result.divisionTitle).toBe('Integrated Automation');
+      expect(result.divisionID).toBe('25');
+      expect(result.division).toBe('Integrated Automation');
       expect(result.order).toBe(25);
       expect(result.confidence).toBe(1.0);
       expect(result.basis).toBe('MASTERFORMAT');
     });
 
-    test('normalizedId = "99 01 23" => division "99", title null, order 99, confidence 0.7, reason unknown-division', () => {
+    test('normalizedId = "99 01 23" => divisionID "99", division null, order 99, confidence 0.7, reason unknown-division', () => {
       const result = normalizeSpecsMasterformat({ normalizedId: '99 01 23' });
       expect(result.sectionId).toBe('99 01 23');
-      expect(result.division).toBe('99');
-      expect(result.divisionTitle).toBeNull();
+      expect(result.divisionID).toBe('99');
+      expect(result.division).toBeNull();
       expect(result.order).toBe(99);
       expect(result.confidence).toBe(0.7);
       expect(result.basis).toBe('MASTERFORMAT');
@@ -77,8 +77,8 @@ describe('Specs MasterFormat Normalization', () => {
     test('normalizedId missing/invalid => UNKNOWN meta, order 999', () => {
       const result1 = normalizeSpecsMasterformat({});
       expect(result1.sectionId).toBeNull();
+      expect(result1.divisionID).toBeNull();
       expect(result1.division).toBeNull();
-      expect(result1.divisionTitle).toBeNull();
       expect(result1.order).toBe(999);
       expect(result1.confidence).toBe(0.2);
       expect(result1.basis).toBe('UNKNOWN');
@@ -138,8 +138,8 @@ describe('Specs MasterFormat Normalization', () => {
       for (const div of divisions) {
         const sectionId = `${div} 10 00`;
         const result = normalizeSpecsMasterformat({ normalizedId: sectionId });
-        expect(result.division).toBe(div);
-        expect(result.divisionTitle).not.toBeNull();
+        expect(result.divisionID).toBe(div);
+        expect(result.division).not.toBeNull();
         expect(result.confidence).toBe(1.0);
         expect(result.basis).toBe('MASTERFORMAT');
         expect(result.order).toBeGreaterThanOrEqual(0);
@@ -149,7 +149,8 @@ describe('Specs MasterFormat Normalization', () => {
     test('legacy 5-digit section IDs resolve via legacy mapping', () => {
       const result = normalizeSpecsMasterformat({ normalizedId: '23050' });
       expect(result.sectionId).toBe('23050');
-      expect(result.division).toBeTruthy();
+      expect(result.divisionID).toBeTruthy();
+      expect(typeof result.division === 'string' || result.division === null).toBe(true);
       expect(result.order).toBeGreaterThanOrEqual(0);
       expect(result.basis).toBe('MASTERFORMAT_LEGACY');
       expect(result.confidence).toBeGreaterThanOrEqual(0.6);

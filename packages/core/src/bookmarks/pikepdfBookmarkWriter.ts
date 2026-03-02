@@ -93,11 +93,28 @@ export async function writeBookmarksViaSidecar(
           'pikepdf not installed. Run: pip install pikepdf>=8.0.0'
         );
       }
-      throw new Error(`Sidecar execution failed: ${error.message}`);
+      const stderr = (error.stderr || '').toString().trim();
+      throw new Error(`Sidecar execution failed: ${error.message}${stderr ? `\n${stderr}` : ''}`);
+    }
+
+    // Ensure sidecar actually created output file
+    try {
+      await fs.access(outputPdfPath);
+    } catch {
+      throw new Error(`Sidecar did not produce output PDF: ${outputPdfPath}`);
     }
     
     // Verify destinations are viewer-compatible using verifier script
     const verifierScriptPath = path.join(__dirname, 'sidecar', 'verify_outline_destinations.py');
+    try {
+      await fs.access(verifierScriptPath);
+    } catch {
+      if (verbose) {
+        console.log(`  Warning: Verifier script not found, skipping viewer compatibility check`);
+      }
+      return;
+    }
+
     try {
       const { stdout, stderr } = await execFileAsync(pythonCmd, [
         verifierScriptPath,
@@ -123,15 +140,9 @@ export async function writeBookmarksViaSidecar(
         console.log(`  Viewer compatibility warnings: ${verification.issues.length} item(s) missing /A GoTo (recommended but not required)`);
       }
     } catch (error: any) {
-      // If verifier script fails, check if it's because script doesn't exist
-      if (error.code === 'ENOENT' || error.message.includes('No such file')) {
-        if (verbose) {
-          console.log(`  Warning: Verifier script not found, skipping viewer compatibility check`);
-        }
-      } else {
-        // Re-throw verification errors as they indicate broken destinations
-        throw new Error(`Viewer compatibility verification failed: ${error.message}`);
-      }
+      // Re-throw verification errors as they indicate broken output/destinations
+      const stderr = (error.stderr || '').toString().trim();
+      throw new Error(`Viewer compatibility verification failed: ${error.message}${stderr ? `\n${stderr}` : ''}`);
     }
     
     if (verbose) {

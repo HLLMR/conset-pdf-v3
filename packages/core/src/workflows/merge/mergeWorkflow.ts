@@ -139,7 +139,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
 > = {
   /**
    * Analyze merge input and produce inventory result
-   * Must NOT write output files - this is a dry-run operation
+   * Writes inventory files to configured output directory for caching
    */
   async analyze(input: MergeAnalyzeInput): Promise<InventoryResult> {
     const {
@@ -168,7 +168,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
       strict,
       locator,
       verbose,
-      false, // writeInventory = false (don't write files in analyze)
+      true, // writeInventory = true (cache inventory files in analyze)
       options.inventoryOutputDir,
       true // includeInventory = true (needed for workflow analyze)
     );
@@ -177,6 +177,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
     // TypeScript: planMerge returns MergePlan | (MergePlan & { inventory })
     const plan = planWithInventory;
     const parseInventory = 'inventory' in planWithInventory ? planWithInventory.inventory || [] : [];
+    const inventoryPath = 'inventoryPath' in planWithInventory ? planWithInventory.inventoryPath : undefined;
 
     // Map to workflow types using actual detection inventory
     // Pass PDF paths to create stable UIDs
@@ -256,6 +257,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
       },
       narrative,
       narrativeValidation,
+      inventoryPath,
     };
   },
 

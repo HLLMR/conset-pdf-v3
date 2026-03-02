@@ -37,7 +37,7 @@ Phase 4 of the Standards Refactor adds comprehensive support for **pre-2004 Mast
 │  normalizeSpecsMasterformat()                           │
 │  ├─ Modern lookup: MASTERFORMAT_DIVISIONS map          │
 │  ├─ Legacy lookup: standardsRegistry.resolveLegacy()   │
-│  └─ Returns: DivisionMeta { division, divisionTitle,   │
+│  └─ Returns: DivisionMeta { divisionID, division,      │
 │              order, confidence, basis }                 │
 └─────────────────────────────────────────────────────────┘
                          ↓
@@ -225,7 +225,8 @@ if (!modernMatches || modernMatches.length === 0 || confidence < 0.6) {
         sectionInfo = {
           page: i + 1,
           sectionIdNormalized: candidate,
-          sectionTitle: normalized.divisionTitle || candidate,
+          sectionTitle: normalized.division || candidate,
+          divisionID: normalized.divisionID,
           division: normalized.division
         };
         break;
@@ -355,8 +356,8 @@ const legacy = standardsRegistry.resolveLegacy(sectionId);
 if (legacy) {
   return {
     sectionId,
-    division: legacy.divisionID,        // Modern division (e.g., "23")
-    divisionTitle: legacy.sectionTitle, // Legacy title
+    divisionID: legacy.divisionID,      // Modern division ID (e.g., "23")
+    division: legacy.sectionTitle,      // Legacy title/division name
     divisionCODE: legacy.divisionCODE,  // Modern code (e.g., "HVAC")
     order: parseInt(legacy.divisionID, 10),
     confidence: 0.8,                    // Lower than modern (1.0)
@@ -407,8 +408,8 @@ const groupKey = sectionInfo.division;
    const normalized = normalizeSpecsMasterformat({ normalizedId: "15100" });
    // Result: {
    //   sectionId: "15100",
-   //   division: "23",
-   //   divisionTitle: "Basic Mechanical Materials and Methods",
+  //   divisionID: "23",
+  //   division: "Basic Mechanical Materials and Methods",
    //   divisionCODE: "HVAC",
    //   order: 23,
    //   confidence: 0.8,

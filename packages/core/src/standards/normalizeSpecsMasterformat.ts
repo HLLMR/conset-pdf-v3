@@ -50,8 +50,8 @@ function divisionEntryToMeta(
 ): SpecsMasterformatMeta {
   return {
     sectionId,
-    division: entry.divisionID,
-    divisionTitle: entry.division,
+    divisionID: entry.divisionID,
+    division: entry.division,
     order: entry.order,
     confidence,
     basis,
@@ -75,8 +75,8 @@ function legacyEntryToMeta(
 
   return {
     sectionId,
-    division: entry.legacyDivID, // Use legacy division ID
-    divisionTitle: entry.sectionTitle,
+    divisionID: entry.legacyDivID,
+    division: entry.sectionTitle,
     order,
     confidence,
     basis: 'MASTERFORMAT_LEGACY',
@@ -104,8 +104,8 @@ export function normalizeSpecsMasterformat(input: {
   if (!extracted) {
     return {
       sectionId: null,
+      divisionID: null,
       division: null,
-      divisionTitle: null,
       order: 999,
       confidence: 0.2,
       basis: 'UNKNOWN',
@@ -130,8 +130,8 @@ export function normalizeSpecsMasterformat(input: {
     // Division not in dataset, medium confidence
     return {
       sectionId,
-      division: divisionId,
-      divisionTitle: null,
+      divisionID: divisionId,
+      division: null,
       order: parseInt(divisionId, 10),
       confidence: 0.7,
       basis: 'MASTERFORMAT',
@@ -171,8 +171,8 @@ export function normalizeSpecsMasterformat(input: {
     const division = sectionId.substring(0, 2);
     return {
       sectionId,
-      division,
-      divisionTitle: null,
+      divisionID: division,
+      division: null,
       order: parseInt(division, 10),
       confidence: 0.6,
       basis: 'MASTERFORMAT_LEGACY',
@@ -183,8 +183,8 @@ export function normalizeSpecsMasterformat(input: {
   // Should never reach here
   return {
     sectionId: null,
+    divisionID: null,
     division: null,
-    divisionTitle: null,
     order: 999,
     confidence: 0.0,
     basis: 'UNKNOWN',

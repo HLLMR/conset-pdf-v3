@@ -153,6 +153,12 @@ export type DisciplineCanonical4 =
 export interface DrawingsDisciplineMeta {
   /** UDS-style single letter designator, e.g. 'M' */
   designator: string | null;
+  /** UDS level 1 single-character identifier, e.g. 'M' */
+  disciplineID?: string | null;
+  /** UDS level 1+2 identifier, e.g. 'MP', 'AD', 'EL' */
+  disciplineEid?: string | null;
+  /** UDS level 1 full name, e.g. 'Mechanical', 'Architectural' */
+  discipline?: string | null;
   /** Optional modifier, e.g. 'D' in 'AD' */
   modifier?: string | null;
   /** Raw observed prefix, e.g. 'FP', 'DDC' */
@@ -174,10 +180,10 @@ export interface DrawingsDisciplineMeta {
 export interface SpecsMasterformatMeta {
   /** Full section ID, e.g. "23 09 00" */
   sectionId: string | null;
-  /** Division code, e.g. "23" */
+  /** Division ID, e.g. "23" */
+  divisionID: string | null;
+  /** Full division name from dataset if present */
   division: string | null;
-  /** Division title from dataset if present */
-  divisionTitle: string | null;
   /** Sort order (numeric division order, fallback 999) */
   order: number;
   /** Confidence level (0.0 to 1.0) */

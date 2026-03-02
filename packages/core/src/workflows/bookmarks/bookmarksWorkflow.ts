@@ -379,6 +379,44 @@ export const bookmarksWorkflowImpl: WorkflowImpl<
     for (const root of bookmarkTree.roots) {
       bookmarks.push(...collectBookmarks(root.id, 0));
     }
+
+    // Fallback for generic bookmark trees (e.g., GUI-provided flat/nested lists)
+    // that don't follow section/article anchor conventions used by resolver paths.
+    if (bookmarks.length === 0 && input.bookmarkTree?.bookmarks?.length) {
+      for (const anchor of input.bookmarkTree.bookmarks) {
+        if (!anchor.pageIndexHint) {
+          continue;
+        }
+        const pageIndex = Math.max(0, Math.min(anchor.pageIndexHint - 1, pageCount - 1));
+        bookmarks.push({
+          title: anchor.title || anchor.anchor,
+          pageIndex,
+          level: anchor.level ?? 0,
+        } as BookmarkEntry);
+
+        if (anchor.children && anchor.children.length > 0) {
+          for (const child of anchor.children) {
+            if (!child.pageIndexHint) {
+              continue;
+            }
+            const childPageIndex = Math.max(0, Math.min(child.pageIndexHint - 1, pageCount - 1));
+            bookmarks.push({
+              title: child.title || child.anchor,
+              pageIndex: childPageIndex,
+              level: child.level ?? ((anchor.level ?? 0) + 1),
+            } as BookmarkEntry);
+          }
+        }
+      }
+
+      if (verbose && bookmarks.length > 0) {
+        console.log(`  Fallback mapping produced ${bookmarks.length} bookmark(s) from pageIndexHint values`);
+      }
+    }
+
+    if (bookmarks.length === 0) {
+      throw new Error('No valid bookmarks to write (anchors could not be resolved and no usable pageIndexHint values were provided).');
+    }
     
     if (verbose && bookmarks.length > 0) {
       // Debug: log first few page indices to verify they're reasonable

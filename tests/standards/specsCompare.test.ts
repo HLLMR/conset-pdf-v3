@@ -23,8 +23,8 @@ describe('Specs Row Comparison', () => {
     const div01 = createRow(
       {
         sectionId: '01 10 00',
-        division: '01',
-        divisionTitle: 'General Requirements',
+        divisionID: '01',
+        division: 'General Requirements',
         order: 1,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -34,8 +34,8 @@ describe('Specs Row Comparison', () => {
     const div23 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -45,8 +45,8 @@ describe('Specs Row Comparison', () => {
     const div25 = createRow(
       {
         sectionId: '25 10 00',
-        division: '25',
-        divisionTitle: 'Integrated Automation',
+        divisionID: '25',
+        division: 'Integrated Automation',
         order: 25,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -56,8 +56,8 @@ describe('Specs Row Comparison', () => {
     const div99 = createRow(
       {
         sectionId: '99 01 23',
-        division: '99',
-        divisionTitle: null,
+        divisionID: '99',
+        division: null,
         order: 99,
         confidence: 0.7,
         basis: 'MASTERFORMAT',
@@ -68,18 +68,18 @@ describe('Specs Row Comparison', () => {
     const rows = [div99, div25, div23, div01];
     rows.sort(compareSpecsRows);
 
-    expect(rows[0].specs?.division).toBe('01');
-    expect(rows[1].specs?.division).toBe('23');
-    expect(rows[2].specs?.division).toBe('25');
-    expect(rows[3].specs?.division).toBe('99');
+    expect(rows[0].specs?.divisionID).toBe('01');
+    expect(rows[1].specs?.divisionID).toBe('23');
+    expect(rows[2].specs?.divisionID).toBe('25');
+    expect(rows[3].specs?.divisionID).toBe('99');
   });
 
   test('within same division: 23 05 00 before 23 09 00 before 23 31 00', () => {
     const sec05 = createRow(
       {
         sectionId: '23 05 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -89,8 +89,8 @@ describe('Specs Row Comparison', () => {
     const sec09 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -100,8 +100,8 @@ describe('Specs Row Comparison', () => {
     const sec31 = createRow(
       {
         sectionId: '23 31 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -121,8 +121,8 @@ describe('Specs Row Comparison', () => {
     const sec0900 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -132,8 +132,8 @@ describe('Specs Row Comparison', () => {
     const sec0901 = createRow(
       {
         sectionId: '23 09 01',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -143,8 +143,8 @@ describe('Specs Row Comparison', () => {
     const sec1000 = createRow(
       {
         sectionId: '23 10 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -164,8 +164,8 @@ describe('Specs Row Comparison', () => {
     const withSpecs = createRow(
       {
         sectionId: '01 10 00',
-        division: '01',
-        divisionTitle: 'General Requirements',
+        divisionID: '01',
+        division: 'General Requirements',
         order: 1,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -177,7 +177,7 @@ describe('Specs Row Comparison', () => {
     const rows = [withoutSpecs, withSpecs];
     rows.sort(compareSpecsRows);
 
-    expect(rows[0].specs?.division).toBe('01');
+    expect(rows[0].specs?.divisionID).toBe('01');
     expect(rows[1].specs).toBeNull();
   });
 
@@ -185,8 +185,8 @@ describe('Specs Row Comparison', () => {
     const row1 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -197,8 +197,8 @@ describe('Specs Row Comparison', () => {
     const row2 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -218,8 +218,8 @@ describe('Specs Row Comparison', () => {
     const row1 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -231,8 +231,8 @@ describe('Specs Row Comparison', () => {
     const row2 = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -253,8 +253,8 @@ describe('Specs Row Comparison', () => {
     const withSection = createRow(
       {
         sectionId: '23 09 00',
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',
@@ -264,8 +264,8 @@ describe('Specs Row Comparison', () => {
     const withoutSection = createRow(
       {
         sectionId: null,
-        division: '23',
-        divisionTitle: 'HVAC',
+        divisionID: '23',
+        division: 'HVAC',
         order: 23,
         confidence: 1.0,
         basis: 'MASTERFORMAT',

@@ -7,14 +7,18 @@ import { DocumentContext } from '../../analyze/documentContext.js';
 import { buildTreeFromBookmarkAnchorTree } from '../treeBuilder.js';
 import { detectPageRegions, type TextPage } from '../../text/pageRegions.js';
 import { buildFooterSectionIndex } from '../../specs/footerSectionMap.js';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('Footer-First Section Anchoring Regression Tests', () => {
   const repoRoot = join(__dirname, '../../../../..');
   const workspaceRoot = join(repoRoot, '..');
   
-  function findInputPdf(): string {
+  function findInputPdf(): string | null {
     const possiblePdfPaths = [
       resolve(workspaceRoot, '.reference/LHHS/Specifications/23_MECH_FULL.pdf'),
       resolve(repoRoot, '.reference/LHHS/Specifications/23_MECH_FULL.pdf'),
@@ -28,10 +32,10 @@ describe('Footer-First Section Anchoring Regression Tests', () => {
       }
     }
     
-    throw new Error(`Input PDF not found. Tried: ${possiblePdfPaths.join(', ')}`);
+    return null;
   }
   
-  function findBookmarkTree(): any {
+  function findBookmarkTree(): any | null {
     const possiblePaths = [
       join(repoRoot, 'tests/fixtures/specs-bookmark-tree.json'),
       join(repoRoot, 'tests/fixtures/diagnostics/specs-bookmark-tree.json'),
@@ -43,17 +47,20 @@ describe('Footer-First Section Anchoring Regression Tests', () => {
       }
     }
     
-    throw new Error(`Bookmark tree not found. Tried: ${possiblePaths.join(', ')}`);
+    return null;
   }
+
+  const inputPdf = findInputPdf();
+  const bookmarkTree = findBookmarkTree();
+  const itIfPdf = (inputPdf && bookmarkTree) ? it : it.skip;
   
   /**
    * Test: Footer-first anchoring produces correct section destinations
    */
-  it('should use footer-first anchoring for section destinations', async () => {
-    const inputPdf = findInputPdf();
-    const bookmarkTree = findBookmarkTree();
+  itIfPdf('should use footer-first anchoring for section destinations', async () => {
+    const bookmarkTree = findBookmarkTree() as any;
     
-    const docContext = new DocumentContext(inputPdf);
+    const docContext = new DocumentContext(inputPdf!);
     await docContext.initialize();
     const pageCount = docContext.pageCount;
     
@@ -127,11 +134,10 @@ describe('Footer-First Section Anchoring Regression Tests', () => {
   /**
    * Test: Section ordering follows numeric sort
    */
-  it('should order sections numerically', async () => {
-    const inputPdf = findInputPdf();
+  itIfPdf('should order sections numerically', async () => {
     const bookmarkTree = findBookmarkTree();
     
-    const docContext = new DocumentContext(inputPdf);
+    const docContext = new DocumentContext(inputPdf!);
     await docContext.initialize();
     const pageCount = docContext.pageCount;
     
@@ -198,10 +204,9 @@ describe('Footer-First Section Anchoring Regression Tests', () => {
   /**
    * Test: Footer index correctly maps sections to first pages
    */
-  it('should map sections to first occurrence pages in footer', async () => {
-    const inputPdf = findInputPdf();
+  itIfPdf('should map sections to first occurrence pages in footer', async () => {
     
-    const docContext = new DocumentContext(inputPdf);
+    const docContext = new DocumentContext(inputPdf!);
     await docContext.initialize();
     const pageCount = docContext.pageCount;
     

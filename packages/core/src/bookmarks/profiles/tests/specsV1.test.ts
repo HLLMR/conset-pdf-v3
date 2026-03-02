@@ -250,9 +250,9 @@ describe('Specs Bookmark Profile v1', () => {
 
       const filtered = shapeBookmarkTree(tree, defaultOptions);
 
-      // Should keep section, part, article
+      // Should keep section and article (part is filtered because includeParts=false)
       expect(filtered.nodes.has('section-1')).toBe(true);
-      expect(filtered.nodes.has('part-1')).toBe(true);
+      expect(filtered.nodes.has('part-1')).toBe(false);
       expect(filtered.nodes.has('article-1')).toBe(true);
       // Should filter out list-item
       expect(filtered.nodes.has('list-item-1')).toBe(false);
