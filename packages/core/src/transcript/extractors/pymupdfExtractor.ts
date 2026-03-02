@@ -123,7 +123,12 @@ export class PyMuPDFExtractor implements TranscriptExtractor {
   private getScriptPath(): string {
     // Try dist first (production), then src (development)
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const distPath = path.join(__dirname, '..', 'sidecar', 'extract-transcript.py');
+    let distPath = path.join(__dirname, '..', 'sidecar', 'extract-transcript.py');
+    
+    // Handle ASAR unpacking in Electron: if inside .asar, try .asar.unpacked
+    if (distPath.includes('.asar') && !distPath.includes('.asar.unpacked')) {
+      distPath = distPath.replace(/\.asar[\\\/]/, '.asar.unpacked' + path.sep);
+    }
     
     // If running from src (development), look in src
     if (!existsSync(distPath)) {

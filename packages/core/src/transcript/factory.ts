@@ -63,8 +63,8 @@ class CanonicalizingExtractor implements TranscriptExtractor {
       const rawTranscript = await this.extractor.extractTranscript(pdfPath, options);
       return canonicalizeTranscript(rawTranscript);
     } catch (error: any) {
-      // If this is a PyMuPDF availability error and we have a fallback, use it
-      if (this.fallback && error.message?.includes('PyMuPDF not installed')) {
+      // If this is a PyMuPDF availability/runtime error and we have a fallback, use it
+      if (this.fallback && isPyMuPDFUnavailableError(error)) {
         const rawTranscript = await this.fallback.extractTranscript(pdfPath, options);
         return canonicalizeTranscript(rawTranscript);
       }
@@ -79,6 +79,23 @@ class CanonicalizingExtractor implements TranscriptExtractor {
   supportsFeature(feature: string) {
     return this.extractor.supportsFeature(feature);
   }
+}
+
+function isPyMuPDFUnavailableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const message = 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+    ? (error as { message: string }).message
+    : '';
+
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('pymupdf not installed') ||
+    normalized.includes('python runtime not found') ||
+    normalized.includes('required for transcript extraction')
+  );
 }
 
 /**

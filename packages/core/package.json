@@ -19,7 +19,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-sidecars.mjs",
     "clean": "rm -rf dist"
   },
   "keywords": [

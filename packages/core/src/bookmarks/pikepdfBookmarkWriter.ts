@@ -63,7 +63,12 @@ export async function writeBookmarksViaSidecar(
   
   // Get script path
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const scriptPath = path.join(__dirname, 'sidecar', 'bookmark-writer.py');
+  let scriptPath = path.join(__dirname, 'sidecar', 'bookmark-writer.py');
+  
+  // Handle ASAR unpacking in Electron: if inside .asar, try .asar.unpacked
+  if (scriptPath.includes('.asar') && !scriptPath.includes('.asar.unpacked')) {
+    scriptPath = scriptPath.replace(/\.asar[\\\/]/, '.asar.unpacked' + path.sep);
+  }
   
   // Create temporary file for bookmarks JSON
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'conset-pdf-bookmarks-'));
@@ -105,7 +110,13 @@ export async function writeBookmarksViaSidecar(
     }
     
     // Verify destinations are viewer-compatible using verifier script
-    const verifierScriptPath = path.join(__dirname, 'sidecar', 'verify_outline_destinations.py');
+    let verifierScriptPath = path.join(__dirname, 'sidecar', 'verify_outline_destinations.py');
+    
+    // Handle ASAR unpacking in Electron
+    if (verifierScriptPath.includes('.asar') && !verifierScriptPath.includes('.asar.unpacked')) {
+      verifierScriptPath = verifierScriptPath.replace(/\.asar[\\\/]/, '.asar.unpacked' + path.sep);
+    }
+    
     try {
       await fs.access(verifierScriptPath);
     } catch {
