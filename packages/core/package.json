@@ -1,6 +1,6 @@
 {
   "name": "@conset-pdf/core",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "Core library for merging addenda and managing construction document sets",
   "type": "module",
   "main": "dist/index.js",

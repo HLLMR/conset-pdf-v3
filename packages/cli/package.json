@@ -1,6 +1,6 @@
 {
   "name": "@conset-pdf/cli",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "CLI for merging addenda and managing construction document sets",
   "type": "module",
   "main": "dist/cli.js",

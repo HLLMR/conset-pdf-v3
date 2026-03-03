@@ -474,7 +474,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
             // Note: currentDocIndex includes original (0), so addendum index = currentDocIndex - 1
             const addendumIndex = currentDocIndex - 1;
             const key = `${addendumIndex}:${page}`;
-            replacementOverrides.set(key, String(replacesId).trim());
+            replacementOverrides!.set(key, String(replacesId).trim());
           }
         }
       });
@@ -487,11 +487,11 @@ export const mergeWorkflowImpl: WorkflowImpl<
           console.log(`  ${key}: -> "${correctedId}"`);
         });
 
-        if (replacementOverrides.size > 0) {
+        if (replacementOverrides!.size > 0) {
           console.log(
-            `[Merge Execute] Built ${replacementOverrides.size} replacement override(s)`
+            `[Merge Execute] Built ${replacementOverrides!.size} replacement override(s)`
           );
-          replacementOverrides.forEach((targetId, key) => {
+          replacementOverrides!.forEach((targetId, key) => {
             console.log(`  ${key}: should replace original ID "${targetId}"`);
           });
         }
