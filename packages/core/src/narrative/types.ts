@@ -161,6 +161,10 @@ export interface CorrectionPatch {
   narrativeIdNormalized: string;
   /** Suggested inventory row ID to match (stable row.id value) */
   suggestedRowId: string;
+  /** Optional original normalized ID this addendum item should replace */
+  replacesIdNormalized?: string;
+  /** Optional stable row.id for the original row that should be replaced */
+  replacesRowId?: string;
   /** Human-readable reason for suggestion (e.g., "id similarity 0.92") */
   reason: string;
   /** Optional explanation with details */

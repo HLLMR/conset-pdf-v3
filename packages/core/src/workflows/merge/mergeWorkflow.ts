@@ -377,6 +377,9 @@ export const mergeWorkflowImpl: WorkflowImpl<
     // Create base locator
     let locator = createLocator(docType, profile, originalPdfPath);
 
+    // Declare replacement overrides map at function scope
+    let replacementOverrides: Map<string, string> | undefined;
+
     // Apply corrections if provided
     if (corrections && Object.keys(corrections.overrides || {}).length > 0) {
       if (verbose) {
@@ -418,9 +421,12 @@ export const mergeWorkflowImpl: WorkflowImpl<
       }
 
       // Build correction map using planner-like ordering across docs.
+      // Also build replacement override map in same pass
       // Key format: "docIndex:pageIndex"
       const ignoredRowIds = new Set(corrections.ignoredRowIds || []);
       const pageIndexToCorrectedId = new Map<string, string>();
+      replacementOverrides = new Map<string, string>();
+      const overrides = corrections.overrides || {};
 
       let currentDocIndex = 0;
       let lastPageIndex = -1;
@@ -450,13 +456,27 @@ export const mergeWorkflowImpl: WorkflowImpl<
         const stableIdParts = String(row.id || '').split(':');
         const originallyDetectedId = String(stableIdParts[stableIdParts.length - 1] || '').trim();
 
-        // Only apply if user changed the ID from original detection
+        // Only apply ID correction if user changed the ID from original detection
         if (originallyDetectedId && originallyDetectedId === correctedId) {
-          return;
+          // Skip ID correction, but still check for replacement override below
+        } else {
+          const key = `${currentDocIndex}:${page}`;
+          pageIndexToCorrectedId.set(key, correctedId);
         }
 
-        const key = `${currentDocIndex}:${page}`;
-        pageIndexToCorrectedId.set(key, correctedId);
+        // Check for replacement override (only for addendum pages)
+        if (currentDocIndex > 0) {
+          const override = overrides[row.id];
+          const replacesId = override?.fields?.replacesId;
+          
+          if (replacesId && replacesId !== 'None') {
+            // Map addendum page to original ID it should replace
+            // Note: currentDocIndex includes original (0), so addendum index = currentDocIndex - 1
+            const addendumIndex = currentDocIndex - 1;
+            const key = `${addendumIndex}:${page}`;
+            replacementOverrides.set(key, String(replacesId).trim());
+          }
+        }
       });
 
       if (verbose) {
@@ -466,6 +486,15 @@ export const mergeWorkflowImpl: WorkflowImpl<
         pageIndexToCorrectedId.forEach((correctedId, key) => {
           console.log(`  ${key}: -> "${correctedId}"`);
         });
+
+        if (replacementOverrides.size > 0) {
+          console.log(
+            `[Merge Execute] Built ${replacementOverrides.size} replacement override(s)`
+          );
+          replacementOverrides.forEach((targetId, key) => {
+            console.log(`  ${key}: should replace original ID "${targetId}"`);
+          });
+        }
       }
 
       // Wrap locator with corrections
@@ -492,6 +521,7 @@ export const mergeWorkflowImpl: WorkflowImpl<
       inventoryOutputDir: options.inventoryOutputDir,
       locator, // Use original or correction-wrapped locator
       patterns: options.patterns,
+      replacementOverrides, // Pass through replacement overrides if any
     };
 
     // Execute merge

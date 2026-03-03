@@ -32,6 +32,11 @@ interface CandidateMatch {
   score: number;
 }
 
+interface InventoryPartition {
+  originalRows: InventoryRowWithContextIds[];
+  addendumRows: InventoryRowWithContextIds[];
+}
+
 type InventoryRowWithContextIds = InventoryRowBase & {
   sheetIdNormalized?: string;
   sectionIdNormalized?: string;
@@ -45,6 +50,41 @@ function getRowContextId(
   if (docType === 'specs') return row.sectionIdNormalized;
   if (docType === 'drawings') return row.sheetIdNormalized;
   return row.sheetIdNormalized || row.sectionIdNormalized;
+}
+
+function partitionInventoryRowsByDocumentSequence(
+  inventory: InventoryResult
+): InventoryPartition {
+  const originalRows: InventoryRowWithContextIds[] = [];
+  const addendumRows: InventoryRowWithContextIds[] = [];
+
+  let currentDocIndex = 0;
+  let lastPageIndex = -1;
+
+  for (const row of inventory.rows) {
+    const rowWithId = row as InventoryRowWithContextIds;
+    const pageIndex = Math.max(0, (row.page ?? 1) - 1);
+
+    if (pageIndex < lastPageIndex) {
+      currentDocIndex += 1;
+    }
+    lastPageIndex = pageIndex;
+
+    if (currentDocIndex === 0) {
+      originalRows.push(rowWithId);
+    } else {
+      addendumRows.push(rowWithId);
+    }
+  }
+
+  if (addendumRows.length === 0) {
+    return {
+      originalRows,
+      addendumRows: [...originalRows],
+    };
+  }
+
+  return { originalRows, addendumRows };
 }
 
 /**
@@ -160,23 +200,33 @@ function createHash(obj: unknown): string {
  */
 function extractIdsFromText(text: string): string[] {
   // Match sequences that look like sheet or spec IDs
-  // Patterns: Letters followed by numbers, possibly with separators
-  const idPattern = /\b[A-Z]{1,3}[\s.\-]?\d+[\s.\-]?\d*[A-Z]?\b/gi;
-  const matches = text.match(idPattern) || [];
+  // More explicit patterns to handle variations:
+  // - Letter(s) + numbers + optional (separator + numbers + optional letter)
+  // - Examples: G1, G1.11, FA2.21A, DG1.1, E0.01, M3.02
+  
+  // Pattern 1: Sheet IDs with potential sub-numbers (e.g., G1.11, E2.21A, DG1.1)
+  const sheetPattern = /[A-Z]{1,4}\d{1,2}(?:[\.\-]\d{1,2}[A-Z]?)?/gi;
+  
+  // Pattern 2: Spec section IDs like "00 01 10" or "23 82 23"
+  const specPattern = /\d{2}\s\d{2}\s\d{2}/g;
   
   const normalized: string[] = [];
-  for (const match of matches) {
-    // Try normalizing as sheet ID first, then spec section ID
-    const asSheet = normalizeSheetId(match);
+  
+  // Try sheet ID pattern first
+  let match;
+  while ((match = sheetPattern.exec(text)) !== null) {
+    const candidate = match[0];
+    const asSheet = normalizeSheetId(candidate);
     if (asSheet) {
       normalized.push(asSheet);
-      continue;
     }
-    
-    const asSpec = normalizeSpecSectionId(match);
+  }
+  
+  // Then try spec section pattern
+  while ((match = specPattern.exec(text)) !== null) {
+    const asSpec = normalizeSpecSectionId(match[0]);
     if (asSpec) {
       normalized.push(asSpec);
-      continue;
     }
   }
   
@@ -200,25 +250,32 @@ function applyLineBasedMatching(
   const suggestions: CorrectionPatch[] = [];
 
   // Build sets for quick lookup
+  const { originalRows, addendumRows } = partitionInventoryRowsByDocumentSequence(inventory);
   const addendumIds = new Set<string>();
   const originalIds = new Set<string>();
-  const originalIdMap = new Map<string, InventoryRowWithContextIds>();
+  const originalIdMap = new Map<string, InventoryRowWithContextIds[]>();
+  const addendumIdMap = new Map<string, InventoryRowWithContextIds[]>();
   const inventoryDocType = inventory.meta?.docType as 'drawings' | 'specs' | undefined;
 
-  // Collect all addendum IDs (both sheets and specs)
-  for (const drawing of narrative.drawings) {
-    addendumIds.add(drawing.sheetIdNormalized);
-  }
-  for (const spec of narrative.specs) {
-    addendumIds.add(spec.sectionIdNormalized);
-  }
-
-  // Collect all original IDs from inventory
-  for (const row of inventory.rows) {
+  // Collect original IDs from original rows
+  for (const row of originalRows) {
     const contextId = getRowContextId(row as InventoryRowWithContextIds, inventoryDocType);
     if (contextId) {
       originalIds.add(contextId);
-      originalIdMap.set(contextId, row as InventoryRowWithContextIds);
+      const existing = originalIdMap.get(contextId) || [];
+      existing.push(row as InventoryRowWithContextIds);
+      originalIdMap.set(contextId, existing);
+    }
+  }
+
+  // Collect addendum IDs from addendum rows
+  for (const row of addendumRows) {
+    const contextId = getRowContextId(row as InventoryRowWithContextIds, inventoryDocType);
+    if (contextId) {
+      addendumIds.add(contextId);
+      const existing = addendumIdMap.get(contextId) || [];
+      existing.push(row as InventoryRowWithContextIds);
+      addendumIdMap.set(contextId, existing);
     }
   }
 
@@ -251,6 +308,7 @@ function applyLineBasedMatching(
 
   let pendingAddendumId: string | undefined;
   let pendingType: 'sheet' | 'spec' | undefined;
+  let pendingAddendumRowId: string | undefined;
 
   for (let i = 0; i < instructions.length; i++) {
     const instruction = instructions[i];
@@ -285,34 +343,44 @@ function applyLineBasedMatching(
         // No suggestion needed - standard revision
         pendingAddendumId = undefined;
         pendingType = undefined;
+        pendingAddendumRowId = undefined;
       }
       // Single match in addendum only → pending for next-line context
       else if (inAddendum && !inOriginal) {
         pendingAddendumId = id;
         pendingType = instruction.type;
+        pendingAddendumRowId = addendumIdMap.get(id)?.[0]?.id;
       }
       // Single match in original only, with pending addendum → link them
       else if (!inAddendum && inOriginal && pendingAddendumId) {
-        const origRow = originalIdMap.get(id)!;
-        suggestions.push({
-          type: pendingType === 'sheet' ? 'sheet' : 'specSection',
-          narrativeIdNormalized: pendingAddendumId,
-          suggestedRowId: origRow.id,
-          reason: 'context_match',
-          explanation: `${pendingType} ID "${pendingAddendumId}" from previous line linked to original ID "${id}"`,
-        });
+        const origRow = originalIdMap.get(id)?.[0];
+        const suggestedRowId = pendingAddendumRowId || origRow?.id;
+        if (suggestedRowId) {
+          suggestions.push({
+            type: pendingType === 'sheet' ? 'sheet' : 'specSection',
+            narrativeIdNormalized: pendingAddendumId,
+            suggestedRowId,
+            replacesIdNormalized: id,
+            replacesRowId: origRow?.id,
+            reason: 'context_match',
+            explanation: `${pendingType} ID "${pendingAddendumId}" from previous line linked to original ID "${id}"`,
+          });
+        }
         pendingAddendumId = undefined;
         pendingType = undefined;
+        pendingAddendumRowId = undefined;
       }
       // Single match in original only, no pending → just context
       else if (!inAddendum && inOriginal) {
         pendingAddendumId = undefined;
         pendingType = undefined;
+        pendingAddendumRowId = undefined;
       }
       // No match in either → skip
       else {
         pendingAddendumId = undefined;
         pendingType = undefined;
+        pendingAddendumRowId = undefined;
       }
     }
 
@@ -331,25 +399,33 @@ function applyLineBasedMatching(
       ) {
         const addendumId = id1InAddendum ? id1 : id2;
         const originalId = id1InOriginal ? id1 : id2;
-        const origRow = originalIdMap.get(originalId)!;
+        const addendumRow = addendumIdMap.get(addendumId)?.[0];
+        const origRow = originalIdMap.get(originalId)?.[0];
+        const suggestedRowId = addendumRow?.id || origRow?.id;
 
-        suggestions.push({
-          type: instruction.type === 'sheet' ? 'sheet' : 'specSection',
-          narrativeIdNormalized: addendumId,
-          suggestedRowId: origRow.id,
-          reason: 'two_id_match',
-          explanation: `Line contains addendum ID "${addendumId}" and original ID "${originalId}" → rename`,
-        });
+        if (suggestedRowId) {
+          suggestions.push({
+            type: instruction.type === 'sheet' ? 'sheet' : 'specSection',
+            narrativeIdNormalized: addendumId,
+            suggestedRowId,
+            replacesIdNormalized: originalId,
+            replacesRowId: origRow?.id,
+            reason: 'two_id_match',
+            explanation: `Line contains addendum ID "${addendumId}" and original ID "${originalId}" → rename`,
+          });
+        }
       }
 
       pendingAddendumId = undefined;
       pendingType = undefined;
+      pendingAddendumRowId = undefined;
     }
 
     // More than two IDs: too ambiguous, skip
     else {
       pendingAddendumId = undefined;
       pendingType = undefined;
+      pendingAddendumRowId = undefined;
     }
   }
 
@@ -374,6 +450,8 @@ export function validateNarrativeAgainstInventory(
   const issues: NarrativeIssue[] = [];
   const suggestedCorrections: CorrectionPatch[] = [];
 
+  const partitioned = partitionInventoryRowsByDocumentSequence(inventory);
+
   // Step 1: Apply line-based hard logic matching
   // This uses set-membership logic to find high-confidence matches
   // without fuzzy matching
@@ -395,7 +473,9 @@ export function validateNarrativeAgainstInventory(
   // Determine docType from meta or infer from rows
   const docType = inventory.meta?.docType as 'drawings' | 'specs' | undefined;
 
-  for (const row of inventory.rows) {
+  // Only validate narrative IDs against addendum rows.
+  // Narrative lists changed/addendum items; original rows are used for replacement pairing.
+  for (const row of partitioned.addendumRows) {
     const rowWithId = row as InventoryRowWithContextIds;
     const normalizedId = getRowContextId(rowWithId, docType);
     if (!normalizedId) continue;

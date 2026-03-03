@@ -38,7 +38,9 @@ export async function mergeAddenda(
     locator,
     verbose,
     true, // Always write inventory files for debugging
-    opts.inventoryOutputDir // Optional organized output directory
+    opts.inventoryOutputDir, // Optional organized output directory
+    false, // includeInventory
+    opts.replacementOverrides // Pass through replacement overrides if provided
   );
 
   const parseTime = Date.now() - parseStart;

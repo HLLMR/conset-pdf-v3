@@ -19,6 +19,7 @@ export interface MergeAddendaOptions {
     drawingsSheetId?: string; // regex string
     specsSectionId?: string; // regex string
   };
+  replacementOverrides?: Map<string, string>; // optional: map of "addendumIndex:pageIndex" -> original ID to replace
 }
 
 export interface MergeReport {

@@ -61,26 +61,55 @@ function createInventory(
     normalizedId: string;
     status?: 'ok' | 'warning' | 'error';
     docType?: 'drawings' | 'specs';
+    origin?: 'original' | 'addendum';
   }> = [],
   docType: 'drawings' | 'specs' = 'drawings'
 ): InventoryResult {
-  return {
-    workflowId: 'merge',
-    rows: rows.map(r => ({
+  const originalRows = rows.filter(r => r.origin === 'original');
+  const addendumRows = rows.filter(r => r.origin !== 'original');
+
+  const mappedRows: InventoryRowBase[] = [];
+
+  // Original rows first (page starts at 2 so addendum reset to page 1 creates doc boundary)
+  originalRows.forEach((r, index) => {
+    const page = index + 2;
+    mappedRows.push({
       id: r.id,
-      normalizedId: r.normalizedId,
+      page,
       status: r.status || 'ok',
       confidence: 1.0,
-    } as InventoryRowBase & { normalizedId: string })),
+      ...(docType === 'specs'
+        ? { sectionIdNormalized: r.normalizedId }
+        : { sheetIdNormalized: r.normalizedId }),
+    } as InventoryRowBase);
+  });
+
+  // Addendum rows (start at page 1, causing page reset boundary when originals exist)
+  addendumRows.forEach((r, index) => {
+    const page = index + 1;
+    mappedRows.push({
+      id: r.id,
+      page,
+      status: r.status || 'ok',
+      confidence: 1.0,
+      ...(docType === 'specs'
+        ? { sectionIdNormalized: r.normalizedId }
+        : { sheetIdNormalized: r.normalizedId }),
+    } as InventoryRowBase);
+  });
+
+  return {
+    workflowId: 'merge',
+    rows: mappedRows,
     issues: [],
     conflicts: [],
     summary: {
-      totalRows: rows.length,
-      rowsWithIds: rows.length,
+      totalRows: mappedRows.length,
+      rowsWithIds: mappedRows.length,
       rowsWithoutIds: 0,
-      rowsOk: rows.filter(r => r.status !== 'error' && r.status !== 'warning').length,
-      rowsWarning: rows.filter(r => r.status === 'warning').length,
-      rowsError: rows.filter(r => r.status === 'error').length,
+      rowsOk: mappedRows.filter(r => r.status !== 'error' && r.status !== 'warning').length,
+      rowsWarning: mappedRows.filter(r => r.status === 'warning').length,
+      rowsError: mappedRows.filter(r => r.status === 'error').length,
       rowsConflict: 0,
       issuesCount: 0,
       conflictsCount: 0,
@@ -430,7 +459,8 @@ describe('Narrative Validation', () => {
       
       // Inventory: DG1.1 exists in original
       const inventory = createInventory([
-        { id: 'orig-row', normalizedId: 'DG1.1' }
+        { id: 'orig-row', normalizedId: 'DG1.1', origin: 'original' },
+        { id: 'add-row', normalizedId: 'G1.11', origin: 'addendum' },
       ]);
 
       const report = validateNarrativeAgainstInventory(narrative, inventory);
@@ -444,7 +474,8 @@ describe('Narrative Validation', () => {
       );
       expect(twoIdMatch).toBeDefined();
       expect(twoIdMatch!.narrativeIdNormalized).toBe('G1.11');
-      expect(twoIdMatch!.suggestedRowId).toBe('orig-row');
+      expect(twoIdMatch!.suggestedRowId).toBe('add-row');
+      expect((twoIdMatch as any).replacesIdNormalized).toBe('DG1.1');
     });
 
     test('notes matching: original ID in notes array (Formerly named)', () => {
@@ -458,7 +489,8 @@ describe('Narrative Validation', () => {
       
       // Inventory: DG1.1 exists in original
       const inventory = createInventory([
-        { id: 'orig-row', normalizedId: 'DG1.1' }
+        { id: 'orig-row', normalizedId: 'DG1.1', origin: 'original' },
+        { id: 'add-row', normalizedId: 'G1.11', origin: 'addendum' },
       ]);
 
       const report = validateNarrativeAgainstInventory(narrative, inventory);
@@ -472,7 +504,8 @@ describe('Narrative Validation', () => {
       );
       expect(twoIdMatch).toBeDefined();
       expect(twoIdMatch!.narrativeIdNormalized).toBe('G1.11');
-      expect(twoIdMatch!.suggestedRowId).toBe('orig-row');
+      expect(twoIdMatch!.suggestedRowId).toBe('add-row');
+      expect((twoIdMatch as any).replacesIdNormalized).toBe('DG1.1');
     });
 
     test('no match when unresolved addendum has no next-line context', () => {

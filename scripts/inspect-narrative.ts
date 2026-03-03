@@ -21,17 +21,28 @@ import { existsSync, writeFileSync, mkdirSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Path to narrative fixture - check .reference first (project root), then test fixtures
-const referencePath = join(__dirname, '..', '..', '.reference', 'Add3 Narrative.pdf');
-const testFixturePath = join(
-  __dirname,
-  '..',
-  'tests',
-  'fixtures',
-  'narratives',
-  'Add3 Narrative.pdf'
-);
-const narrativeFixturePath = existsSync(referencePath) ? referencePath : testFixturePath;
+// Get path from command line argument or use defaults
+const cliPath = process.argv[2];
+let narrativeFixturePath: string;
+
+if (cliPath) {
+  // If CLI argument provided, resolve relative to project root
+  narrativeFixturePath = cliPath.startsWith('/') || cliPath.includes(':')
+    ? cliPath
+    : join(__dirname, '..', '..', cliPath);
+} else {
+  // Default fallback
+  const referencePath = join(__dirname, '..', '..', '.reference', 'Add3 Narrative.pdf');
+  const testFixturePath = join(
+    __dirname,
+    '..',
+    'tests',
+    'fixtures',
+    'narratives',
+    'Add3 Narrative.pdf'
+  );
+  narrativeFixturePath = existsSync(referencePath) ? referencePath : testFixturePath;
+}
 
 async function main() {
   console.log('='.repeat(80));

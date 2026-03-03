@@ -29,7 +29,8 @@ export function parseNarrativeAlgorithmic(
   
   // Find drawing and spec sections
   // More tolerant patterns to catch variations
-  const drawingsSection = findSection(doc, /REVISIONS?\s+TO\s+DRAWINGS?/i);
+  const drawingsSection = findSection(doc, /REVISIONS?\s+TO\s+DRAWINGS?/i) ||
+                          findSection(doc, /REVISED\s+AND\s+RE\s*[-]\s*ISSUED/i);
   const specsSection = findSection(doc, /REVISIONS?\s+TO\s+(?:THE\s+)?(?:PROJECT\s+)?MANUAL/i) ||
                        findSection(doc, /REVISIONS?\s+TO\s+SPECIFICATIONS?/i);
   

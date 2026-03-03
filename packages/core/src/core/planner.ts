@@ -488,6 +488,9 @@ function buildIdMap(pageIds: PageId[], verbose: boolean = false, sourceName: str
  * Plan the merge operation
  * 
  * @param includeInventory - If true, returns both plan and combined inventory from all PDFs
+ * @param replacementOverrides - Optional map of addendum pages to target original IDs they should replace
+ *                               Key format: "addendumIndex:pageIndex" (e.g., "0:5" for first addendum page 5)
+ *                               Value: original normalized ID to replace (e.g., "M-101" or "23-05-00")
  * @returns MergePlan (and optionally inventory when includeInventory=true)
  */
 export async function planMerge(
@@ -500,7 +503,8 @@ export async function planMerge(
   verbose: boolean = false,
   writeInventory: boolean = false,
   inventoryOutputDir?: string,
-  includeInventory: boolean = false
+  includeInventory: boolean = false,
+  replacementOverrides?: Map<string, string>
 ): Promise<
   | (MergePlan & { originalDocContext?: DocumentContext; inventoryPath?: string })
   | (MergePlan & { originalDocContext?: DocumentContext; inventory: ParseResult['inventory']; inventoryPath?: string })
@@ -594,9 +598,10 @@ export async function planMerge(
     : undefined;
 
   // Process each addendum in order
-  for (const addendumPath of addendumPaths) {
+  for (let addendumIndex = 0; addendumIndex < addendumPaths.length; addendumIndex++) {
+    const addendumPath = addendumPaths[addendumIndex];
     if (verbose) {
-      console.log(`\nProcessing addendum: ${addendumPath}`);
+      console.log(`\nProcessing addendum ${addendumIndex}: ${addendumPath}`);
     }
     const addendumResult = await parsePdfIds(addendumPath, type, locator, verbose, writeInventory, inventoryOutputDir);
     const addendumPageIds = addendumResult.pageIds;
@@ -630,9 +635,28 @@ export async function planMerge(
       const addendumPages = pageIds.map((pid) => pid.pageIndex);
       addendumPages.forEach((idx) => processedPages.add(idx));
 
-      // Find existing pages with this ID in working set
+      // Check for replacement override for this addendum page
+      // If user manually specified which original item this should replace, use that instead
+      let searchId = normalizedId;
+      let hasOverride = false;
+      
+      if (replacementOverrides && addendumPages.length > 0) {
+        // Check if any of these pages has a replacement override
+        // Use the first page's override if multiple pages have same ID
+        const overrideKey = `${addendumIndex}:${addendumPages[0]}`;
+        const overrideTarget = replacementOverrides.get(overrideKey);
+        if (overrideTarget) {
+          searchId = overrideTarget;
+          hasOverride = true;
+          if (verbose) {
+            console.log(`  [OVERRIDE] Addendum page ${addendumPages[0] + 1} (ID "${normalizedId}") will replace original ID "${overrideTarget}"`);
+          }
+        }
+      }
+
+      // Find existing pages with this ID in working set (using override target if specified)
       const existingIndexes = workingSet
-        .map((wp, idx) => (wp.id === normalizedId ? idx : -1))
+        .map((wp, idx) => (wp.id === searchId ? idx : -1))
         .filter((idx) => idx !== -1);
 
       if (existingIndexes.length > 0 && mode !== 'append-only') {
@@ -649,7 +673,8 @@ export async function planMerge(
               return `position ${idx + 1} (${wp.source} page ${wp.sourceIndex + 1})`;
             }).join(', ');
             const addendumPageList = addendumPages.map(p => `page ${p + 1}`).join(', ');
-            console.log(`\n  [REPLACEMENT] ID "${normalizedId}":`);
+            const replacementLabel = hasOverride ? `[MANUAL OVERRIDE] Addendum "${normalizedId}"` : `ID "${normalizedId}"`;
+            console.log(`\n  [REPLACEMENT] ${replacementLabel}:`);
             console.log(`    Found ${existingIndexes.length} existing page(s) at: ${existingPages}`);
             console.log(`    Replacing with ${addendumPages.length} addendum page(s): ${addendumPageList}`);
             if (existingIndexes.length > 1) {
