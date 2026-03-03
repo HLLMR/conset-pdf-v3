@@ -597,11 +597,17 @@ export async function planMerge(
     ? [...(originalResult.inventory || [])]
     : undefined;
 
+  if (verbose) {
+    console.log(`\n=== WORKING SET STATE BEFORE ADDENDA ===`);
+    console.log(`Original working set (${workingSet.length} pages): [${workingSet.map(p => p.id || 'null').join(', ')}]`);
+  }
+
   // Process each addendum in order
   for (let addendumIndex = 0; addendumIndex < addendumPaths.length; addendumIndex++) {
     const addendumPath = addendumPaths[addendumIndex];
     if (verbose) {
       console.log(`\nProcessing addendum ${addendumIndex}: ${addendumPath}`);
+      console.log(`  Working set before: [${workingSet.map(p => p.id || 'null').join(', ')}]`);
     }
     const addendumResult = await parsePdfIds(addendumPath, type, locator, verbose, writeInventory, inventoryOutputDir);
     const addendumPageIds = addendumResult.pageIds;
@@ -691,6 +697,11 @@ export async function planMerge(
 
           // Remove old pages and insert new ones at the same position
           const insertIndex = existingIndexes[0];
+          
+          if (verbose) {
+            console.log(`  [REPLACE] ID "${normalizedId}" at indices ${existingIndexes.join(', ')} -> position ${insertIndex} (removing ${existingIndexes.length} pages, inserting ${addendumPages.length} pages)`);
+          }
+          
           // Remove existing pages
           for (let i = existingIndexes.length - 1; i >= 0; i--) {
             workingSet.splice(existingIndexes[i], 1);
@@ -730,6 +741,10 @@ export async function planMerge(
               break;
             }
           }
+        }
+
+        if (verbose) {
+          console.log(`  [INSERT] ID "${normalizedId}" -> position ${insertIndex} (workingSet has ${workingSet.length} pages, IDs: ${workingSet.map(p => p.id || 'null').join(', ')})`);
         }
 
         inserted.push({
@@ -795,13 +810,25 @@ export async function planMerge(
     }
   }
 
+  if (verbose) {
+    console.log(`\n  Final working set: [${workingSet.map(p => p.id || 'null').join(', ')}]`);
+  }
+
   const parseTime = Date.now() - parseStart;
   
   if (verbose) {
     console.log(`\n⏱️  Parse time: ${parseTime}ms (${(parseTime / 1000).toFixed(2)}s)`);
   }
 
-  const result: MergePlan & { originalDocContext?: DocumentContext; inventory?: ParseResult['inventory']; inventoryPath?: string } = {
+  // Build diagnostic data showing final working set order
+  const diagnosticWorkingSetOrder = workingSet.map((wp, idx) => ({
+    position: idx,
+    id: wp.id || 'null',
+    source: wp.source,
+    sourceIndex: wp.sourceIndex,
+  }));
+
+  const result: MergePlan & { originalDocContext?: DocumentContext; inventory?: ParseResult['inventory']; inventoryPath?: string; _diagnostics?: any } = {
     pages: workingSet.map((wp) => ({
       source: wp.source,
       sourceIndex: wp.sourceIndex,
@@ -815,6 +842,22 @@ export async function planMerge(
     parseWarnings, // Include warnings in plan
     parseNotices: parseNotices.length > 0 ? parseNotices : undefined, // Include notices in plan
   };
+  
+  // Attach diagnostics for debugging (only when verbose)
+  if (verbose) {
+    (result as any)._diagnostics = {
+      workingSetOrder: diagnosticWorkingSetOrder,
+      replacedSummary: replaced.map(r => ({
+        id: r.id,
+        originalIndexes: r.originalPageIndexes,
+        insertedAtIndex: result.pages.findIndex(p => p.id === r.id && p.source === 'addendum'),
+      })),
+      insertedSummary: inserted.map(i => ({
+        id: i.id,
+        insertedAtIndex: i.insertedAtIndex,
+      })),
+    };
+  }
   
   // Attach DocumentContext for use in report generation (avoids re-loading PDF)
   if (originalDocContext) {

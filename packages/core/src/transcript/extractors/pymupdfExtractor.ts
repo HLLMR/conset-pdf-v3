@@ -21,7 +21,9 @@ const execFileAsync = promisify(execFile);
  * Find Python executable
  */
 async function findPython(): Promise<string> {
-  const candidates = ['python3', 'python', 'py'];
+  const candidates = process.platform === 'win32'
+    ? ['python', 'py', 'python3']
+    : ['python3', 'python', 'py'];
   
   for (const cmd of candidates) {
     try {

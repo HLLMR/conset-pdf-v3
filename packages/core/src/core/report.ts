@@ -123,5 +123,7 @@ export async function generateMergeReport(
       parseTimeMs,
       mergeTimeMs,
     },
-  };
+    // Include diagnostic data if available
+    _diagnostics: (plan as any)._diagnostics,
+  } as any;
 }
