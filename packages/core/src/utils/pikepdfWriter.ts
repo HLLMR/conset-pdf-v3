@@ -174,19 +174,23 @@ export async function writePdfWithPikepdf(
         console.log(`  [pikepdfWriter] Sidecar completed successfully`);
       }
     } catch (error: any) {
-      // Check for known error conditions
-      if (error.stderr && error.stderr.includes('pikepdf')) {
+      const stderr = (error.stderr || '').toString().trim();
+      const stdout = (error.stdout || '').toString().trim();
+      
+      // Check for pikepdf import errors (specific patterns only)
+      if (stderr && (
+        stderr.includes('No module named \'pikepdf\'') ||
+        (stderr.includes('ModuleNotFoundError') && stderr.includes('pikepdf')) ||
+        (stderr.includes('ImportError') && stderr.includes('pikepdf'))
+      )) {
         throw createPikepdfError(
           'pikepdf not installed. Run: pip install pikepdf>=8.0.0',
           error.code,
-          error.stderr,
-          error.stdout,
+          stderr,
+          stdout,
           { ...errorContext, phase: 'sidecar', missingDependency: true }
         );
       }
-
-      const stderr = (error.stderr || '').toString().trim();
-      const stdout = (error.stdout || '').toString().trim();
       
       throw createPikepdfError(
         `Sidecar execution failed: ${error.message}`,
@@ -207,8 +211,9 @@ export async function writePdfWithPikepdf(
       const outputDir = path.dirname(outputPath);
       await fs.mkdir(outputDir, { recursive: true });
 
-      // Atomic rename (overwrites existing file)
-      await fs.rename(tempOutputPath, outputPath);
+      // Copy then delete (handles cross-device moves on Windows)
+      await fs.copyFile(tempOutputPath, outputPath);
+      await fs.unlink(tempOutputPath);
 
       if (verbose) {
         console.log(`  [pikepdfWriter] Successfully wrote PDF: ${outputPath}`);
@@ -304,18 +309,23 @@ export async function writePdfFileThroughPikepdf(
         );
       }
     } catch (error: any) {
-      if (error.stderr && error.stderr.includes('pikepdf')) {
+      const stderr = (error.stderr || '').toString().trim();
+      const stdout = (error.stdout || '').toString().trim();
+      
+      // Check for pikepdf import errors (specific patterns only)
+      if (stderr && (
+        stderr.includes('No module named \'pikepdf\'') ||
+        (stderr.includes('ModuleNotFoundError') && stderr.includes('pikepdf')) ||
+        (stderr.includes('ImportError') && stderr.includes('pikepdf'))
+      )) {
         throw createPikepdfError(
           'pikepdf not installed. Run: pip install pikepdf>=8.0.0',
           error.code,
-          error.stderr,
-          error.stdout,
+          stderr,
+          stdout,
           { ...errorContext, missingDependency: true }
         );
       }
-
-      const stderr = (error.stderr || '').toString().trim();
-      const stdout = (error.stdout || '').toString().trim();
       
       throw createPikepdfError(
         `Sidecar execution failed: ${error.message}`,
@@ -334,7 +344,9 @@ export async function writePdfFileThroughPikepdf(
 
       const outputDir = path.dirname(outputPath);
       await fs.mkdir(outputDir, { recursive: true });
-      await fs.rename(tempOutputPath, outputPath);
+      // Copy then delete (handles cross-device moves on Windows)
+      await fs.copyFile(tempOutputPath, outputPath);
+      await fs.unlink(tempOutputPath);
 
       if (verbose) {
         console.log(`  [pikepdfWriter] Successfully wrote PDF: ${outputPath}`);

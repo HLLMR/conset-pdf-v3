@@ -94,13 +94,19 @@ export async function writeBookmarksViaSidecar(
         '--bookmarks-json', bookmarksJsonPath,
       ]);
     } catch (error: any) {
-      // Check if it's a pikepdf import error
-      if (error.stderr && error.stderr.includes('pikepdf')) {
+      const stderr = (error.stderr || '').toString().trim();
+      
+      // Check if it's a pikepdf import error (specific patterns only)
+      if (stderr && (
+        stderr.includes('No module named \'pikepdf\'') ||
+        stderr.includes('ModuleNotFoundError') && stderr.includes('pikepdf') ||
+        stderr.includes('ImportError') && stderr.includes('pikepdf')
+      )) {
         throw new Error(
           'pikepdf not installed. Run: pip install pikepdf>=8.0.0'
         );
       }
-      const stderr = (error.stderr || '').toString().trim();
+      
       throw new Error(`Sidecar execution failed: ${error.message}${stderr ? `\n${stderr}` : ''}`);
     }
 

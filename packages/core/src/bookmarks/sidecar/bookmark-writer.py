@@ -44,8 +44,11 @@ def write_pdf_passthrough(input_path: Path, output_path: Path):
         input_path: Path to input PDF
         output_path: Path to output PDF
     """
+    # Check if overwriting input (needed for pikepdf safety)
+    allow_overwrite = input_path.resolve() == output_path.resolve()
+    
     # Open PDF
-    pdf = Pdf.open(input_path)
+    pdf = Pdf.open(input_path, allow_overwriting_input=allow_overwrite)
     
     # Save with linearization for better viewer compatibility
     pdf.save(output_path, linearize=True)
@@ -163,8 +166,11 @@ def create_outline_item(bookmark: dict, pdf: Pdf, parent_item=None):
 
 def write_bookmarks(input_path: Path, output_path: Path, bookmarks_json: Path):
     """Write bookmarks to PDF"""
+    # Check if overwriting input (needed for pikepdf safety)
+    allow_overwrite = input_path.resolve() == output_path.resolve()
+    
     # Load PDF
-    pdf = Pdf.open(input_path)
+    pdf = Pdf.open(input_path, allow_overwriting_input=allow_overwrite)
     
     # Load bookmarks
     bookmarks_data = load_bookmarks(bookmarks_json)
