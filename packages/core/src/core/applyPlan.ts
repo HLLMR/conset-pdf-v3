@@ -1,5 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
-import { loadPdf, savePdf, copyPages } from '../utils/pdf.js';
+import { loadPdf, copyPages } from '../utils/pdf.js';
+
 import { writePdfWithPikepdf, type PikepdfWriteError } from '../utils/pikepdfWriter.js';
 import type { MergePlan } from './planner.js';
 import type { ConsetDocType } from '../index.js';

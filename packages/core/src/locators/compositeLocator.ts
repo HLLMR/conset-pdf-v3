@@ -1,13 +1,18 @@
 import type { SheetLocator, SheetLocationResult } from './sheetLocator.js';
 import type { PageContext } from '../analyze/pageContext.js';
+import { isLegacyLocatorEnabled } from '../config/featureFlags.js';
+import { logLegacyLocatorUsage } from '../utils/deprecation.js';
 
 /**
  * Composite locator: tries ROI first, falls back to legacy
  * 
+ * **DEPRECATED**: The legacy locator fallback is deprecated and disabled by default.
+ * Set `ENABLE_LEGACY_LOCATOR=true` environment variable to use it.
+ * 
  * This is useful when:
  * - Auto-layout proposes a profile but you want legacy as backup
  * - ROI detection might have gaps and legacy can fill them
- * - You want best-of-both-worlds detection
+ * - You want best-of-both-worlds detection (with legacy fallback enabled)
  */
 export class CompositeLocator implements SheetLocator {
   private roiLocator: SheetLocator | null;
@@ -60,20 +65,39 @@ export class CompositeLocator implements SheetLocator {
         };
       }
       
-      // ROI failed - fall back to legacy with explanation
-      const legacyResult = await this.legacyLocator.locate(page);
+      // ROI failed - check if legacy fallback is enabled
+      const legacyEnabled = isLegacyLocatorEnabled();
       
       // Build fallback explanation
       const roiFailureReasons = roiResult.warnings.length > 0 
         ? roiResult.warnings.join('; ')
         : 'ROI detection failed';
       
+      if (!legacyEnabled) {
+        // Legacy fallback is disabled - return error with guidance
+        logLegacyLocatorUsage(`Page ${page.pageIndex}: ROI detection failed`);
+        return {
+          confidence: 0.0,
+          method: `composite-roi-failed`,
+          warnings: [
+            `ROI detection failed, and legacy fallback is DISABLED (ENABLE_LEGACY_LOCATOR=false).`,
+            `ROI failures: ${roiFailureReasons}`,
+            `To enable legacy fallback, set environment variable: ENABLE_LEGACY_LOCATOR=true`,
+          ],
+        };
+      }
+      
+      // Legacy fallback is enabled - log deprecation and use it
+      logLegacyLocatorUsage(`Page ${page.pageIndex}: ROI detection failed, falling back to legacy`);
+      
+      const legacyResult = await this.legacyLocator.locate(page);
+      
       return {
         ...legacyResult,
         method: `composite-fallback-${legacyResult.method}`,
         warnings: [
           ...legacyResult.warnings,
-          `ROI detection failed, using legacy fallback. ROI failures: ${roiFailureReasons}`,
+          `⚠️  Using deprecated legacy locator fallback. ROI failures: ${roiFailureReasons}`,
         ],
         context: legacyResult.context 
           ? `${legacyResult.context} (fallback from ROI: ${roiFailureReasons})`
@@ -81,12 +105,33 @@ export class CompositeLocator implements SheetLocator {
       };
     }
     
-    // No ROI locator - use legacy only
+    // No ROI locator - check if legacy-only usage is permitted
+    const legacyEnabled = isLegacyLocatorEnabled();
+    
+    if (!legacyEnabled) {
+      logLegacyLocatorUsage(`Page ${page.pageIndex}: Using legacy locator without ROI`);
+      return {
+        confidence: 0.0,
+        method: 'composite-legacy-disabled',
+        warnings: [
+          'Legacy locator fallback is DISABLED (ENABLE_LEGACY_LOCATOR=false).',
+          'CompositeLocator requires either ROI detection or legacy fallback enabled.',
+          'To enable legacy fallback, set environment variable: ENABLE_LEGACY_LOCATOR=true',
+        ],
+      };
+    }
+    
+    // Legacy fallback is enabled - log deprecation and use it
+    logLegacyLocatorUsage(`Page ${page.pageIndex}: Using legacy locator only (no ROI)`);
     const legacyResult = await this.legacyLocator.locate(page);
+
     
     return {
       ...legacyResult,
       method: `composite-fallback-${legacyResult.method}`,
-    };
+      warnings: [
+        ...legacyResult.warnings,
+        '⚠️  Using deprecated legacy locator. This system is abandoned and will be removed.',
+      ],    };
   }
 }

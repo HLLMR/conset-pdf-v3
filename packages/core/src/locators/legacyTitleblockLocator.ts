@@ -10,6 +10,9 @@ import { extractSheetTitle } from '../utils/bookmarks.js';
 /**
  * Legacy titleblock locator using auto-detection (cached)
  * 
+ * ⚠️  **DEPRECATED**: This system is abandoned and will be removed in v4.0.0.
+ * Use ROI-based locator with layout profiles instead.
+ * 
  * This wraps the existing titleblock detection logic but uses
  * cached PageContext to avoid duplicate work.
  * 

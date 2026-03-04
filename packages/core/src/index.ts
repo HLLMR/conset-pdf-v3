@@ -165,6 +165,19 @@ export { detectPageRegions } from './text/pageRegions.js';
 export type { TextPage, DetectedPageRegions } from './text/pageRegions.js';
 export type { TextItemWithPosition } from './utils/pdf.js';
 
+// Export feature flags and deprecation utilities
+export { 
+  getFeatureFlag, 
+  setFeatureFlag, 
+  resetFeatureFlags,
+  isLegacyLocatorEnabled,
+} from './config/featureFlags.js';
+export { 
+  logDeprecation, 
+  logLegacyLocatorUsage,
+  logPdfAstDeprecation,
+} from './utils/deprecation.js';
+
 // Export transcript system
 export type * from './transcript/types.js';
 export type * from './transcript/interfaces.js';

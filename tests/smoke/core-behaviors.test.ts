@@ -9,7 +9,7 @@
  * These tests use minimal fixtures or instrumentation to keep them fast.
  */
 
-import { DocumentContext, RoiSheetLocator, LegacyTitleblockLocator, SpecsSectionLocator, CompositeLocator, createInlineLayout, createMergeWorkflowRunner } from '@conset-pdf/core';
+import { DocumentContext, RoiSheetLocator, LegacyTitleblockLocator, SpecsSectionLocator, CompositeLocator, createInlineLayout, createMergeWorkflowRunner, setFeatureFlag, resetFeatureFlags } from '@conset-pdf/core';
 import { PDFDocument } from 'pdf-lib';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -168,6 +168,46 @@ describe('Core Behaviors', () => {
    * Test: CompositeLocator fallback behavior
    */
   test('CompositeLocator uses ROI first, falls back to legacy', async () => {
+    // Enable legacy locator for this test (it's disabled by default)
+    setFeatureFlag('ENABLE_LEGACY_LOCATOR', true);
+    
+    try {
+      const docContext = new DocumentContext(testPdfPath);
+      await docContext.initialize();
+      await docContext.extractTextForPage(0);
+      
+      const pageContext = await docContext.getPageContext(0);
+      
+      // Create composite locator
+      const legacyLocator = new LegacyTitleblockLocator(testPdfPath);
+      legacyLocator.setDocumentContext(docContext);
+      
+      // ROI locator with empty ROI (will fail)
+      const emptyProfile = createInlineLayout('0.0,0.0,0.01,0.01'); // Tiny ROI
+      const roiLocator = new RoiSheetLocator(emptyProfile);
+      
+      const compositeLocator = new CompositeLocator(roiLocator, legacyLocator);
+      
+      const result = await compositeLocator.locate(pageContext);
+      
+      // Should fall back to legacy
+      expect(result.method).toContain('fallback');
+      expect(result.id).toBeDefined(); // Legacy should find it
+      
+      // Verify same PageContext instance is reused
+      const pageContext2 = await docContext.getPageContext(0);
+      expect(pageContext).toBe(pageContext2);
+    } finally {
+      // Reset feature flags to default
+      resetFeatureFlags();
+    }
+  });
+
+  /**
+   * Test: CompositeLocator blocks legacy fallback when disabled (default)
+   */
+  test('CompositeLocator blocks legacy fallback when ENABLE_LEGACY_LOCATOR=false', async () => {
+    // Legacy locator should be disabled by default (no need to set)
     const docContext = new DocumentContext(testPdfPath);
     await docContext.initialize();
     await docContext.extractTextForPage(0);
@@ -186,13 +226,11 @@ describe('Core Behaviors', () => {
     
     const result = await compositeLocator.locate(pageContext);
     
-    // Should fall back to legacy
-    expect(result.method).toContain('fallback');
-    expect(result.id).toBeDefined(); // Legacy should find it
-    
-    // Verify same PageContext instance is reused
-    const pageContext2 = await docContext.getPageContext(0);
-    expect(pageContext).toBe(pageContext2);
+    // Should NOT find ID because legacy fallback is disabled
+    expect(result.id).toBeUndefined();
+    expect(result.method).toContain('roi-failed');
+    expect(result.warnings.join(',').toLowerCase()).toContain('disabled');
+    expect(result.warnings.join(',').toUpperCase()).toContain('ENABLE_LEGACY_LOCATOR');
   });
   
   /**
