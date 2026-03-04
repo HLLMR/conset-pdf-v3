@@ -1,6 +1,6 @@
 {
   "name": "conset-pdf-v3-monorepo",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Monorepo for conset-pdf-v3: core library and CLI",
   "private": true,
   "type": "module",
