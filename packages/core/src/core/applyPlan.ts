@@ -1,5 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { loadPdf, savePdf, copyPages } from '../utils/pdf.js';
+import { writePdfWithPikepdf, type PikepdfWriteError } from '../utils/pikepdfWriter.js';
 import type { MergePlan } from './planner.js';
 import type { ConsetDocType } from '../index.js';
 import { PdfLibBookmarkWriter } from '../utils/pdfLibBookmarkWriter.js';
@@ -88,5 +89,28 @@ export async function applyMergePlan(
   }
 
   // Save the output PDF (with bookmarks if generated)
-  await savePdf(outputDoc, outputPath);
+  // Use pikepdf sidecar for deterministic output and cross-viewer compatibility
+  try {
+    await writePdfWithPikepdf(outputDoc, outputPath, {
+      verbose: options.verbose || false,
+      context: {
+        operation: 'merge',
+        docType: options.type,
+      },
+    });
+  } catch (error: any) {
+    // If pikepdf write fails, surface the error with full context
+    const pikepdfError = error as PikepdfWriteError;
+    const errorMsg = `Failed to write merged PDF via pikepdf: ${pikepdfError.message}`;
+    const context = {
+      ...pikepdfError.context,
+      exitCode: pikepdfError.exitCode,
+      stderr: pikepdfError.stderr,
+    };
+    
+    // Create a new error with complete context
+    const wrappedError = new Error(errorMsg);
+    (wrappedError as any).context = context;
+    throw wrappedError;
+  }
 }

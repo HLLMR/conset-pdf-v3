@@ -20,10 +20,11 @@ except ImportError:
 
 def parse_args():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Write bookmarks to PDF')
+    parser = argparse.ArgumentParser(description='Write bookmarks or passthrough PDF via pikepdf')
     parser.add_argument('--input', required=True, help='Input PDF path')
     parser.add_argument('--output', required=True, help='Output PDF path')
-    parser.add_argument('--bookmarks-json', required=True, help='Bookmarks JSON path')
+    parser.add_argument('--bookmarks-json', required=False, help='Bookmarks JSON path (required for bookmarks mode)')
+    parser.add_argument('--mode', default='bookmarks', choices=['bookmarks', 'passthrough'], help='Operation mode: bookmarks (write bookmarks) or passthrough (write PDF via pikepdf for safety)')
     return parser.parse_args()
 
 
@@ -31,6 +32,23 @@ def load_bookmarks(json_path: Path) -> dict:
     """Load bookmarks from JSON file"""
     with open(json_path, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def write_pdf_passthrough(input_path: Path, output_path: Path):
+    """Write PDF using pikepdf (passthrough mode)
+    
+    This mode simply opens and re-saves the PDF using pikepdf.
+    This provides deterministic output and improves cross-viewer compatibility.
+    
+    Args:
+        input_path: Path to input PDF
+        output_path: Path to output PDF
+    """
+    # Open PDF
+    pdf = Pdf.open(input_path)
+    
+    # Save with linearization for better viewer compatibility
+    pdf.save(output_path, linearize=True)
 
 
 def create_outline_item(bookmark: dict, pdf: Pdf, parent_item=None):
@@ -361,20 +379,29 @@ def main():
     
     input_path = Path(args.input)
     output_path = Path(args.output)
-    bookmarks_json = Path(args.bookmarks_json)
+    mode = args.mode
     
     # Validate inputs
     if not input_path.exists():
         print(f"Error: Input PDF not found: {input_path}", file=sys.stderr)
         sys.exit(1)
     
-    if not bookmarks_json.exists():
-        print(f"Error: Bookmarks JSON not found: {bookmarks_json}", file=sys.stderr)
-        sys.exit(1)
-    
     try:
-        write_bookmarks(input_path, output_path, bookmarks_json)
-        print(f"Successfully wrote bookmarks to {output_path}")
+        if mode == 'passthrough':
+            # Passthrough mode: just write the PDF and through pikepdf for safety
+            write_pdf_passthrough(input_path, output_path)
+            print(f"Successfully wrote PDF to {output_path}")
+        elif mode == 'bookmarks':
+            # Bookmarks mode: write bookmarks to PDF
+            bookmarks_json = Path(args.bookmarks_json)
+            if not bookmarks_json.exists():
+                print(f"Error: Bookmarks JSON not found: {bookmarks_json}", file=sys.stderr)
+                sys.exit(1)
+            write_bookmarks(input_path, output_path, bookmarks_json)
+            print(f"Successfully wrote bookmarks to {output_path}")
+        else:
+            print(f"Error: Unknown mode: {mode}", file=sys.stderr)
+            sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
