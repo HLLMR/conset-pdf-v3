@@ -1,6 +1,6 @@
 # Conset PDF: Master Plan V4.2
-**Version:** 4.2.0 (Senior Architect Review - Phase Reorganization)  
-**Date:** January 23, 2026  
+**Version:** 4.2.1 (Architecture Execution Update - Monorepo + Tauri GUI Direction)  
+**Date:** March 19, 2026  
 **Owner:** HLLMR LLC  
 **Status:** ✅ Ready for Implementation  
 
@@ -238,8 +238,43 @@ Conset PDF operates like a compiler:
 | **PDF Generation** | Headless Chrome (via `headless_chrome`) | High-fidelity HTML→PDF, CSS support |
 | **Pattern Matching** | `regex` crate | Deterministic, fast, well-tested |
 | **Serialization** | `serde` + `serde_json` | Standard Rust serialization |
-| **GUI (future)** | Tauri or Iced | Native desktop, Rust-based |
+| **GUI (V4 desktop)** | Tauri | Rust-native desktop shell with strong backend integration |
 | **Testing** | Built-in `cargo test` + golden files | Regression testing |
+
+### Repository Strategy (Monorepo with Hard Boundaries)
+
+Use a **single monorepo** for V4 development with strict package/crate boundaries.
+
+**Rationale:**
+- Backend and GUI contracts will evolve rapidly during V4
+- Atomic cross-boundary refactors are required for reliability
+- One CI surface avoids integration drift between repos
+
+**Required structure:**
+
+```
+repo-root/
+├── apps/
+│   ├── backend-cli/         # Rust binary entrypoints (CLI/API host)
+│   └── desktop-gui/         # Tauri app + frontend UI
+├── crates/
+│   ├── core-engine/         # Deterministic extraction and transforms
+│   ├── workflows/           # Merge/split/bookmarks/spec patch orchestration
+│   ├── contracts/           # Shared request/response/event schemas
+│   └── standards-data/      # Embedded standards datasets
+├── docs/
+│   ├── prototype-postmortem/
+│   └── v4/
+└── tests/
+  ├── corpus/
+  └── integration/
+```
+
+**Boundary rules:**
+- GUI must depend on backend only through `crates/contracts`
+- No GUI imports from `core-engine` internals
+- CLI/API and GUI integration tests required for every contract version bump
+- Repo split is optional later, only after contract churn stabilizes
 
 ### No Python Runtime
 
@@ -785,6 +820,8 @@ Phase 11+: GUI & Polish (Weeks 21+) ← V1.0
 
 **Deliverables:**
 - ☐ Rust project scaffolding (Cargo workspace)
+- ☐ Monorepo scaffolding with `apps/` and `crates/` boundaries
+- ☐ `crates/contracts` initialized as the canonical backend/frontend contract package
 - ☐ PDFium integration (`pdfium-render` crate)
 - ☐ CI/CD pipeline (GitHub Actions)
 - ☐ Torture corpus repository structure
@@ -1207,12 +1244,19 @@ cargo run -- apply-addendum \
 **Goal:** Ship monetizable product.
 
 **Deliverables:**
-- ☐ Desktop GUI (Tauri or Iced)
+- ☐ Desktop GUI on Tauri (V4 standard)
+- ☐ New workflow-first UI architecture (fresh implementation, not incremental patching of prototype wizard stack)
 - ☐ One-button workflows
 - ☐ Overlay visualization
 - ☐ Audit bundle review UI
 - ☐ Pattern database management UI
 - ☐ Billing + licensing
+
+**GUI migration guardrails:**
+- Freeze prototype GUI to bugfix-only while V4 GUI is built
+- Use contract-first integration (`crates/contracts`) between Tauri UI and Rust backend
+- Migrate workflows lane-by-lane with explicit parity checks
+- Remove legacy screens once parity + soak testing pass
 
 **Decision Point: Desktop vs Web**
 
