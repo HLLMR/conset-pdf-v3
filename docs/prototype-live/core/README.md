@@ -50,8 +50,9 @@ Core library and CLI for building "latest-and-greatest" construction document se
 - Legacy detection fallback (drawings)
 - Inventory analysis with corrections support
 
-**⚠️ Partially Implemented:**
-- Split/Assemble workflows - CLI commands exist, workflow engine not yet implemented
+**⚠️ Known Gaps / Legacy Paths:**
+- Split and Fix Bookmarks GUI flows remain placeholder UI in `conset-pdf-gui` (core + CLI are implemented)
+- `specs-patch` and `assemble-set` are retained as abandoned legacy paths for reference
 
 **📚 Documentation:**
 - Complete API documentation

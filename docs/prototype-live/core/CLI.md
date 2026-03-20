@@ -10,6 +10,10 @@ The CLI routes through the same workflow engine as the core library for consiste
 - **`merge-addenda`**: Merge addenda into original set (Update Documents workflow)
 - **`split-set`**: Extract and separate documents by sheet ID (Extract Documents workflow)
 - **`fix-bookmarks`**: Read, validate, and repair PDF bookmarks (Fix Bookmarks workflow)
+- **`specs-inventory`**: Generate deterministic spec inventory using footer-first sectionization
+
+Developer diagnostics:
+- **`debug-walkthrough`**: Generate deep debug artifacts for troubleshooting and workflow introspection
 
 Abandoned/Superseded commands:
 - **`specs-patch`**: Abandoned - functionality integrated into Extract workflow
@@ -63,8 +67,8 @@ conset-pdf merge-addenda \
 - `--layout <path>`: Path to layout profile JSON
 - `--sheet-id-roi <roi>`: Sheet ID ROI: `"x,y,width,height"` (normalized 0-1)
 - `--sheet-title-roi <roi>`: Sheet title ROI: `"x,y,width,height"` (normalized 0-1)
-- `--auto-layout`: Auto-detect layout and suggest profile (default: false)
-- `--save-layout <path>`: Save auto-detected layout to file
+- `--auto-layout`: Reserved flag (currently unimplemented/no-op; kept for planned V4 capability)
+- `--save-layout <path>`: Reserved flag (currently unimplemented/no-op; kept for planned V4 capability)
 - `--inventory-dir <path>`: Directory for inventory JSON files (default: next to source PDFs)
 - `--narrative <path>`: Path to narrative PDF for advisory analysis (optional)
 
@@ -184,6 +188,9 @@ conset-pdf merge-addenda \
 - `2`: Invalid arguments or validation error
 - `3`: Strict mode violation (unmatched pages)
 - `4`: File I/O error (file not found, permission denied)
+
+**Important**:
+- `--auto-layout` and `--save-layout` are accepted by the command parser but are not currently wired into merge execution behavior.
 
 ---
 

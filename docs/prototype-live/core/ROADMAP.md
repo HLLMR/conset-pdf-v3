@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last updated**: 2026-03-01
+**Last updated**: 2026-03-19
 
 This document provides a concise view of what's complete and what remains to be implemented in the conset-pdf project.
 
@@ -30,18 +30,6 @@ Complete transcript-based extraction system with:
 **Files**: `packages/core/src/transcript/` (complete module)
 
 **Documentation**: `docs/TRANSCRIPT_ARCHITECTURE.md`, `docs/MIGRATION_V3.md`, `docs/ML_RULESET_COMPILER.md`
-
-### Specs Patch Workflow
-
-**Status**: ✅ **100% Complete** (Engine + CLI)
-
-- Extract Word-generated spec PDFs to structured AST
-- Deterministic patch operations (insert, move, renumber, replace, delete)
-- HTML/CSS → PDF rendering via Playwright
-- BookmarkAnchorTree generation for bookmarks pipeline integration
-- CLI command: `specs-patch`
-
-**Files**: `packages/core/src/workflows/specs-patch/`, `packages/cli/src/commands/specsPatch.ts`
 
 ### Update Documents (Merge) Workflow
 
@@ -148,7 +136,7 @@ Complete transcript-based extraction system with:
 
 **Files**: `conset-pdf-gui/src/placeholder-wizard.js`, `conset-pdf-gui/src/split-drawings-wizard.js`
 
-**Blocked By**: Core workflow engines not implemented (see above)
+**Blocked By**: GUI wiring and productization work (core engines are implemented)
 
 ---
 
@@ -157,8 +145,8 @@ Complete transcript-based extraction system with:
 | Feature | Core Engine | CLI | GUI | Status |
 |---------|-------------|-----|-----|--------|
 | **Update Documents (Merge)** | ✅ | ✅ | ✅ | Complete |
-| **Extract Documents (Split)** | ✅ | ✅ | ✅ | Complete |
-| **Fix Bookmarks** | ✅ | ✅ | ✅ | Complete |
+| **Extract Documents (Split)** | ✅ | ✅ | ⚠️ | Core+CLI complete; GUI placeholder |
+| **Fix Bookmarks** | ✅ | ✅ | ⚠️ | Core+CLI complete; GUI placeholder |
 | **Specs Patch** | ❌ | ❌ | ❌ | Abandoned |
 | **Assemble Set** | ❌ | ❌ | ❌ | Abandoned |
 | **Standards (UCS/CSI)** | ✅ | ✅ | ✅ | Complete |
@@ -195,10 +183,10 @@ Complete transcript-based extraction system with:
 
 ## Next Steps (Recommended Order)
 
-1. **Extract Documents (Split) Workflow** - Implement workflow engine for split operations
-2. **Build Package (Assemble) Workflow** - Implement workflow engine for assembly operations
-3. **GUI Integration** - Complete Split/Assemble/Bookmark wizards after core implementations
+1. **GUI Integration** - Complete Split and Fix Bookmarks wizard implementations
+2. **Doc Accuracy Cleanup** - Keep README/ROADMAP/CLI command status aligned with code truth
+3. **Deferred Feature Planning** - Decide V4 path for auto-layout and report-viewer surfaces
 
 ---
 
-**Last Updated**: 2026-01-17
+**Last Updated**: 2026-03-19

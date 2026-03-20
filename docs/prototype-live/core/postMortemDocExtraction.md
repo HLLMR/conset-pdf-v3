@@ -184,21 +184,22 @@ Document the **why** behind each major architectural choice, especially those th
 
 14. **ADR-001: Python Sidecar Pattern**
     - Why: pikepdf (LGPL-licensed) and PyMuPDF cannot be bundled in an Apache-2.0 library; sidecar isolates licensing boundary
-    - Affected subsystems: transcript extraction (PyMuPDF), bookmark writing (pikepdf/QPDF), large-file merge streaming (pikepdf)
+    - Affected subsystems: transcript extraction (PyMuPDF), bookmark writing (pikepdf/QPDF), and the prototype's planned/partial pikepdf-backed output path for large-file merge handling
     - Rust alternative: PDFium (Apache-2.0) for extraction, lopdf or pdf-rs for structure manipulation
     - Known issues: process startup overhead; sidecar versioning coupling
 15. **ADR-002: Transcript-First Extraction (v3 migration)**
     - Why: PDF.js `getTextContent()` gives unreliable bounding boxes; PyMuPDF's dict/rawdict-first approach gives 95-99% accuracy needed for geometric analysis
-    - Trade-off: requires Python at dev/build time (acceptable); end-user path through Node.js spawn
+    - Trade-off: in the prototype, the preferred path requires Python at runtime and is invoked through Node.js spawn; acceptable for v3 but must be removed in Rust
     - Rust alternative: PDFium text extraction provides equivalent or better accuracy natively
 16. **ADR-003: Workflow Engine Pattern (analyze → applyCorrections → execute)**
-    - Why: separates read-only analysis from destructive writes; enables corrections UI without re-parsing
+    - Why: separates read-only analysis from destructive writes; enables corrections UI and staged execution (current implementation still re-runs analyze in applyCorrections)
     - How cursor state moves between phases (plan caching, corrections overlay)
     - Must preserve in Rust
 17. **ADR-004: Disk-Based Merge via Pikepdf Sidecar**
     - Why: Large PDFs (>500MB) caused OOM with in-memory pdf-lib assembly
-    - Merge plan JSON serialization for cross-language handoff
+    - Merge plan JSON serialization for cross-language handoff is the intended target architecture; current code does not yet execute merge assembly through that serialized handoff
     - Atomic temp-file-then-rename pattern for safe overwrite
+    - Note: current code only partially realizes this direction; final output is routed through pikepdf, but page assembly still occurs in memory
     - Rust: implement as native streaming merge from day one
 18. **ADR-005: Determinism as a Design Invariant**
     - Enumerate all known sources of non-determinism eliminated: date fields in hashes, sort tie-breaks, floating-point coordinate rounding, Python random seeding
@@ -213,10 +214,10 @@ Document the **why** behind each major architectural choice, especially those th
     - Three privacy modes (STRICT_STRUCTURE_ONLY, WHITELIST_ANCHORS, FULL_TEXT_OPT_IN)
     - Why this is necessary: AEC documents contain PII and proprietary project data
 21. **ADR-008: Technology Choices Abandoned**
-    - `pdf-lib` for bookmark writing → replaced by pikepdf/QPDF (reliability, cross-viewer compatibility)
-    - `PDF.js` for extraction → replaced by PyMuPDF (bbox accuracy)
-    - In-memory merge → replaced by disk-based streaming (OOM on large files)
-    - PDF AST feature → abandoned (over-engineered for the immediate problem)
+    - `pdf-lib` bookmark writing path was superseded by pikepdf/QPDF direction, but still remains active in parts of merge execution (capture current-state drift)
+    - `PDF.js` extraction was demoted from primary to fallback/auxiliary role after PyMuPDF migration (not fully removed)
+    - In-memory merge remains partially active while disk-based pikepdf strategy is the target architecture
+    - Broad generic PDF AST ambition was abandoned, but scoped specs AST workflows remain active and should not be mislabeled as removed
     - Legacy locator system → deprecated (ROI profiles solved the same problem more reliably)
     - LLM-assisted narrative parsing → deferred (algorithmic parsing covers most cases)
 
